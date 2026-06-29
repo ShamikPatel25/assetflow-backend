@@ -1,0 +1,175 @@
+from django.db import transaction
+from apps.notifications.models import Notification
+from apps.employees.models import TenantUser
+
+class NotificationService:
+    """Service to handle creation of automated notifications."""
+
+    @staticmethod
+    def _get_hr_managers():
+        """Helper to fetch all active HR Managers."""
+        return list(TenantUser.objects.filter(
+            role=TenantUser.Role.HR_MANAGER,
+            is_active=True
+        ))
+
+    @staticmethod
+    def notify_asset_allocated(allocation):
+        """Notify the employee that an asset has been allocated to them."""
+        # Employee profile's user is the TenantUser
+        recipient = allocation.employee.user
+        Notification.objects.create(
+            recipient=recipient,
+            title="New Asset Allocated",
+            message=f"You have been allocated a new asset: {allocation.asset.name}.",
+            type=Notification.Type.ASSET_ALLOCATED,
+            payload={
+                "allocation_id": str(allocation.id),
+                "asset_id": str(allocation.asset.id)
+            }
+        )
+
+    @staticmethod
+    def notify_asset_returned(allocation):
+        """Notify HR Managers that an employee has returned an asset."""
+        hr_managers = NotificationService._get_hr_managers()
+        notifications = []
+        for hr in hr_managers:
+            notifications.append(
+                Notification(
+                    recipient=hr,
+                    title="Asset Returned",
+                    message=f"Employee {allocation.employee.get_full_name()} has returned asset: {allocation.asset.name}.",
+                    type=Notification.Type.ASSET_RETURNED,
+                    payload={
+                        "allocation_id": str(allocation.id),
+                        "asset_id": str(allocation.asset.id)
+                    }
+                )
+            )
+        if notifications:
+            Notification.objects.bulk_create(notifications)
+
+    @staticmethod
+    def notify_request_submitted(request_obj):
+        """Notify HR Managers that a new asset request was submitted."""
+        hr_managers = NotificationService._get_hr_managers()
+        notifications = []
+        for hr in hr_managers:
+            notifications.append(
+                Notification(
+                    recipient=hr,
+                    title="New Asset Request",
+                    message=f"Employee {request_obj.requested_by.get_full_name()} has requested a new asset.",
+                    type=Notification.Type.REQUEST_SUBMITTED,
+                    payload={
+                        "request_id": str(request_obj.id)
+                    }
+                )
+            )
+        if notifications:
+            Notification.objects.bulk_create(notifications)
+
+    @staticmethod
+    def notify_request_approved(request_obj):
+        """Notify the employee that their request was approved."""
+        recipient = request_obj.requested_by.user
+        Notification.objects.create(
+            recipient=recipient,
+            title="Asset Request Approved",
+            message=f"Your request for {request_obj.category.name if request_obj.category else 'an asset'} has been approved.",
+            type=Notification.Type.REQUEST_APPROVED,
+            payload={
+                "request_id": str(request_obj.id)
+            }
+        )
+
+    @staticmethod
+    def notify_request_rejected(request_obj):
+        """Notify the employee that their request was rejected."""
+        recipient = request_obj.requested_by.user
+        Notification.objects.create(
+            recipient=recipient,
+            title="Asset Request Rejected",
+            message=f"Your request for {request_obj.category.name if request_obj.category else 'an asset'} has been rejected.",
+            type=Notification.Type.REQUEST_REJECTED,
+            payload={
+                "request_id": str(request_obj.id)
+            }
+        )
+
+    @staticmethod
+    def notify_incident_reported(incident):
+        """Notify HR Managers that a new incident was reported."""
+        hr_managers = NotificationService._get_hr_managers()
+        notifications = []
+        for hr in hr_managers:
+            notifications.append(
+                Notification(
+                    recipient=hr,
+                    title="New Incident Reported",
+                    message=f"Employee {incident.reported_by.get_full_name()} reported an incident for asset: {incident.asset.name}.",
+                    type=Notification.Type.INCIDENT_REPORTED,
+                    payload={
+                        "incident_id": str(incident.id),
+                        "asset_id": str(incident.asset.id)
+                    }
+                )
+            )
+        if notifications:
+            Notification.objects.bulk_create(notifications)
+
+    @staticmethod
+    def notify_incident_updated(incident):
+        """Notify the employee that their incident was updated (resolved/closed)."""
+        recipient = incident.reported_by.user
+        Notification.objects.create(
+            recipient=recipient,
+            title=f"Incident {incident.status.title()}",
+            message=f"Your incident for {incident.asset.name} is now {incident.status.title()}.",
+            type=Notification.Type.INCIDENT_UPDATED,
+            payload={
+                "incident_id": str(incident.id),
+                "asset_id": str(incident.asset.id)
+            }
+        )
+
+    @staticmethod
+    def notify_license_expiring(license_obj):
+        """Notify HR Managers that a license is expiring."""
+        hr_managers = NotificationService._get_hr_managers()
+        notifications = []
+        for hr in hr_managers:
+            notifications.append(
+                Notification(
+                    recipient=hr,
+                    title="License Expiring",
+                    message=f"The license for {license_obj.software_name} expires on {license_obj.expiry_date}.",
+                    type=Notification.Type.LICENSE_EXPIRING,
+                    payload={
+                        "license_id": str(license_obj.id)
+                    }
+                )
+            )
+        if notifications:
+            Notification.objects.bulk_create(notifications)
+
+    @staticmethod
+    def notify_warranty_expiring(asset):
+        """Notify HR Managers that an asset warranty is expiring."""
+        hr_managers = NotificationService._get_hr_managers()
+        notifications = []
+        for hr in hr_managers:
+            notifications.append(
+                Notification(
+                    recipient=hr,
+                    title="Warranty Expiring",
+                    message=f"The warranty for asset {asset.name} expires on {asset.warranty_expiry_date}.",
+                    type=Notification.Type.WARRANTY_EXPIRING,
+                    payload={
+                        "asset_id": str(asset.id)
+                    }
+                )
+            )
+        if notifications:
+            Notification.objects.bulk_create(notifications)
