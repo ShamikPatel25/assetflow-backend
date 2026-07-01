@@ -15,15 +15,20 @@ def send_invitation_email(user, tenant_name, domain_name):
     token = jwt.encode(payload, settings.SECRET_KEY, algorithm="HS256")
 
     setup_url = f"http://{domain_name}:3000/setup-account?token={token}"
-    subject = f"Welcome to {tenant_name} - Complete Your Account Setup"
+    subject = f"You're Invited to Join {tenant_name}"
+    try:
+        first_name = user.employee_profile.first_name
+    except Exception:
+        first_name = "there"
     message = (
-        f"Hello,\n\n"
-        f"An account has been created for you at {tenant_name}.\n\n"
-        f"Please click the link below to set up your account and choose a password.\n"
-        f"This link will expire in 1 hour.\n\n"
-        f"Setup Link: {setup_url}\n\n"
-        f"Thank you,\n"
-        f"Platform Team"
+        f"Hello {first_name},\n\n"
+        f"You have been invited to join {tenant_name}’s asset management system.\n\n"
+        f"To activate your account, please complete your profile and create your password using the secure link below:\n\n"
+        f"{setup_url}\n\n"
+        f"For security reasons, this invitation link will expire in 1 hour.\n\n"
+        f"If you did not request this invitation or need a new link, please contact your organization administrator.\n\n"
+        f"Regards,\n"
+        f"{tenant_name} Team"
     )
     
     send_mail(

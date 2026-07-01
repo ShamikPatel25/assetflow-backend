@@ -11,7 +11,7 @@ class TenantAuthBackend(ModelBackend):
             email = kwargs.get('username')
             
         try:
-            user = TenantUser.objects.get(email=email)
+            user = TenantUser.objects.get(email__iexact=email)
         except TenantUser.DoesNotExist:
             return None
             

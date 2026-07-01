@@ -5,6 +5,7 @@ from django.utils import timezone
 from apps.allocations.models import AssetAllocation
 from apps.assets.models import Asset
 from apps.base.errors import AFValidationError, error_codes
+from apps.notifications.services import NotificationService
 
 
 class AllocationService:
@@ -44,6 +45,8 @@ class AllocationService:
                 "status", "current_owner", "current_allocation", "updated_at",
             ])
 
+        NotificationService.notify_asset_allocated(allocation)
+
         return allocation
 
     @staticmethod
@@ -72,5 +75,7 @@ class AllocationService:
             asset.save(update_fields=[
                 "status", "current_owner", "current_allocation", "updated_at",
             ])
+
+        NotificationService.notify_asset_returned(allocation)
 
         return allocation

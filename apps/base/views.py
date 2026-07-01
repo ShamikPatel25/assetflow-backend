@@ -1,10 +1,13 @@
 import logging
 
 from django.conf import settings
+from django.core.exceptions import ValidationError
 from django.db import transaction
 from django.http import Http404
+from rest_framework.exceptions import NotFound
 from rest_framework import viewsets, mixins, status
 from rest_framework.response import Response
+from apps.audit.services import log_action
 
 logger = logging.getLogger(__name__)
 
@@ -32,6 +35,14 @@ class BaseViewSet(viewsets.GenericViewSet):
             return qs.active()
         return qs
 
+    def get_object(self):
+        try:
+            return super().get_object()
+        except (Http404, ValueError, ValidationError):
+            model_class = getattr(self, "queryset", self.get_queryset()).model
+            model_name = model_class._meta.verbose_name.title()
+            raise NotFound({"message": f"{model_name} not found."})
+
     def get_serializer(self, *args, **kwargs):
         if "serializer_class" in kwargs:
             serializer_class = kwargs.pop("serializer_class")
@@ -51,11 +62,33 @@ class BaseViewSet(viewsets.GenericViewSet):
 
     def perform_create(self, serializer):
         with transaction.atomic():
-            return serializer.save(created_by=self.request.user)
+            instance = serializer.save(created_by=self.request.user)
+            
+            log_action(
+                user=self.request.user,
+                action="CREATE",
+                module=instance._meta.model_name.upper(),
+                object_type=instance._meta.object_name,
+                object_id=instance.id,
+                object_repr=str(instance),
+                request=self.request,
+            )
+            return instance
 
     def perform_update(self, serializer):
         with transaction.atomic():
-            return serializer.save(updated_by=self.request.user)
+            instance = serializer.save(updated_by=self.request.user)
+            
+            log_action(
+                user=self.request.user,
+                action="UPDATE",
+                module=instance._meta.model_name.upper(),
+                object_type=instance._meta.object_name,
+                object_id=instance.id,
+                object_repr=str(instance),
+                request=self.request,
+            )
+            return instance
 
     def perform_destroy(self, instance):
         """Soft delete: mark is_deleted=True instead of actual removal."""
@@ -63,6 +96,16 @@ class BaseViewSet(viewsets.GenericViewSet):
             instance.is_deleted = True
             instance.updated_by = self.request.user
             instance.save(update_fields=["is_deleted", "updated_by", "updated_at"])
+
+            log_action(
+                user=self.request.user,
+                action="DELETE",
+                module=instance._meta.model_name.upper(),
+                object_type=instance._meta.object_name,
+                object_id=instance.id,
+                object_repr=str(instance),
+                request=self.request,
+            )
 
     def unhandled_response(self, ex, function_name="NA"):
         if isinstance(ex, Http404):
@@ -88,7 +131,38 @@ class CRUDViewSet(
     mixins.DestroyModelMixin,
 ):
     """Full CRUD viewset: list, create, retrieve, update, soft-delete."""
-    pass
+    
+    def destroy(self, request, *args, **kwargs):
+        try:
+            instance = self.get_object()
+        except Http404:
+            lookup_url_kwarg = self.lookup_url_kwarg or self.lookup_field
+            filter_kwargs = {self.lookup_field: self.kwargs[lookup_url_kwarg]}
+            
+            model_class = getattr(self, "queryset", self.get_queryset()).model
+            model_name = model_class._meta.verbose_name.title()
+            
+            try:
+                exists = model_class._default_manager.filter(**filter_kwargs).exists()
+            except (ValidationError, ValueError):
+                exists = False
+                
+            if exists:
+                return Response(
+                    {"message": f"{model_name} is already deleted."},
+                    status=status.HTTP_400_BAD_REQUEST
+                )
+            return Response(
+                {"message": f"{model_name} not found."},
+                status=status.HTTP_404_NOT_FOUND
+            )
+
+        model_name = instance._meta.verbose_name.title()
+        self.perform_destroy(instance)
+        return Response(
+            {"message": f"{model_name} deleted successfully."},
+            status=status.HTTP_200_OK
+        )
 
 
 class ReadOnlyViewSet(
@@ -97,4 +171,3 @@ class ReadOnlyViewSet(
     mixins.RetrieveModelMixin,
 ):
     """Read-only viewset: list and retrieve only."""
-    pass

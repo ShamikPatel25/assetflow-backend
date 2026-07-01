@@ -14,6 +14,27 @@ class AssetCategorySerializer(BaseModelSerializer):
             "parent", "parent_name",
         )
 
+    def validate_parent(self, value):
+        if value is not None:
+            # 1. The selected parent cannot itself be a sub-category.
+            if value.parent is not None:
+                raise serializers.ValidationError("Only 1 level of sub-categories is supported. You cannot select a sub-category as a parent.")
+            # 2. If this category already has sub-categories, it cannot become a sub-category itself.
+            if self.instance and self.instance.children.filter(is_deleted=False).exists():
+                raise serializers.ValidationError("This category already has sub-categories. It cannot be nested under another category.")
+        return value
+
+    def validate(self, attrs):
+        parent = attrs.get("parent", self.instance.parent if self.instance else None)
+        category_type = attrs.get("category_type", self.instance.category_type if self.instance else None)
+        
+        if parent and category_type and parent.category_type != category_type:
+            raise serializers.ValidationError({
+                "category_type": f"Sub-category type '{category_type}' must match parent category type '{parent.category_type}'."
+            })
+            
+        return super().validate(attrs)
+
 
 class AssetSerializer(BaseModelSerializer):
     category_name = serializers.CharField(source="category.name", read_only=True, default=None)

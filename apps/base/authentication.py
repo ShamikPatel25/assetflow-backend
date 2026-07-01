@@ -2,6 +2,9 @@ from django.db import connection
 from django.utils.translation import gettext_lazy as _
 from rest_framework_simplejwt.authentication import JWTAuthentication
 from rest_framework_simplejwt.exceptions import AuthenticationFailed, InvalidToken
+from apps.accounts.models import User
+from apps.employees.models import TenantUser
+from rest_framework_simplejwt.settings import api_settings
 
 
 class TenantJWTAuthentication(JWTAuthentication):
@@ -14,7 +17,6 @@ class TenantJWTAuthentication(JWTAuthentication):
         """
         Attempts to find and return a user using the given validated token.
         """
-        from rest_framework_simplejwt.settings import api_settings
         
         try:
             user_id = validated_token[api_settings.USER_ID_CLAIM]
@@ -22,16 +24,15 @@ class TenantJWTAuthentication(JWTAuthentication):
             raise InvalidToken(_("Token contained no recognizable user identification"))
 
         if connection.schema_name == "public":
-            from apps.accounts.models import User
             UserModel = User
         else:
-            from apps.employees.models import TenantUser
             UserModel = TenantUser
 
         try:
+            # We strictly fetch the user from the CURRENT SCHEMA's table
             user = UserModel.objects.get(**{api_settings.USER_ID_FIELD: user_id})
         except UserModel.DoesNotExist:
-            raise AuthenticationFailed(_("User not found"), code="user_not_found")
+            raise AuthenticationFailed(_("User not found in this tenant context"), code="user_not_found")
 
         if not user.is_active:
             raise AuthenticationFailed(_("User is inactive"), code="user_inactive")

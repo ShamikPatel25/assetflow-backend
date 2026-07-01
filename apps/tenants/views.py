@@ -9,6 +9,8 @@ from drf_spectacular.utils import extend_schema_view, extend_schema
 
 from apps.base.permissions import IsSuperAdmin
 from apps.tenants.models import Organization, Domain
+from drf_spectacular.utils import inline_serializer
+from rest_framework import serializers
 from apps.tenants.serializers import (
     OrganizationCreateSerializer, 
     OrganizationSuperAdminUpdateSerializer, 
@@ -46,15 +48,24 @@ class OrganizationViewSet(ModelViewSet):
         if self.action == 'create':
             return OrganizationCreateSerializer
         if self.action in ['activate', 'deactivate']:
-            from rest_framework import serializers
             return serializers.Serializer
         return OrganizationSuperAdminUpdateSerializer
 
     permission_classes = [IsAuthenticated, IsSuperAdmin]
     ordering = ("-created_at",)
 
-    from drf_spectacular.utils import inline_serializer
-    from rest_framework import serializers
+    def perform_destroy(self, instance):
+        instance.delete(force_drop=True)
+
+    def destroy(self, request, *args, **kwargs):
+        instance = self.get_object()
+        model_name = instance._meta.verbose_name.title()
+        self.perform_destroy(instance)
+        return Response(
+            {"message": f"{model_name} deleted successfully, along with its tenant schema."},
+            status=status.HTTP_200_OK
+        )
+
 
     @extend_schema(
         request=None,

@@ -15,7 +15,7 @@ class TenantLoginSerializer(serializers.Serializer):
         # We need to explicitly tell authenticate which backend to use 
         # or rely on the custom backend doing its job
         user = authenticate(email=email, password=password)
-        if not user:
+        if not user or not isinstance(user, TenantUser):
             raise serializers.ValidationError("Invalid email or password.")
         if not user.is_active:
             raise serializers.ValidationError("This account has been deactivated.")
@@ -47,6 +47,15 @@ class EmployeeProfileSerializer(serializers.ModelSerializer):
             "id", "employee_code", "designation", "department", 
             "manager", "joining_date", "exit_date"
         ]
+
+    def validate_phone(self, value):
+        if not value:
+            return value
+        if not value.isdigit():
+            raise serializers.ValidationError("Only numbers are allowed.")
+        if not (10 <= len(value) <= 15):
+            raise serializers.ValidationError("10-15 digits only allowed.")
+        return value
 
 
 class ChangePasswordSerializer(serializers.Serializer):

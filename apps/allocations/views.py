@@ -49,6 +49,8 @@ class AssetAllocationViewSet(ReadOnlyViewSet):
     ordering_fields = ["allocated_at", "created_at", "status"]
     filterset_fields = ["status", "asset", "employee"]
 
+
+
     @action(detail=False, methods=["post"], url_path="allocate",
             permission_classes=[IsAuthenticated, IsOrgAdminOrHR])
     def allocate(self, request):

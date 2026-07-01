@@ -2,6 +2,7 @@ from rest_framework import serializers
 
 from apps.base.serializers import BaseModelSerializer
 from apps.requests.models import AssetRequest
+from apps.assets.models import Asset
 
 
 class AssetRequestSerializer(BaseModelSerializer):
@@ -41,5 +42,35 @@ class AssetRequestCreateSerializer(serializers.Serializer):
     )
 
 
+    def validate_preferred_asset(self, value):
+        if value:
+            try:
+                asset = Asset.objects.get(pk=value)
+                if asset.status != Asset.Status.AVAILABLE:
+                    raise serializers.ValidationError(f"This asset is currently {asset.status.lower()} and cannot be requested.")
+            except Asset.DoesNotExist:
+                pass
+        return value
+
+    def validate(self, attrs):
+        category_id = attrs.get("category")
+        preferred_asset_id = attrs.get("preferred_asset")
+
+        if category_id and preferred_asset_id:
+            try:
+                asset = Asset.objects.get(pk=preferred_asset_id)
+                if str(asset.category_id) != str(category_id):
+                    raise serializers.ValidationError({
+                        "preferred_asset": "The preferred asset does not belong to the requested category."
+                    })
+            except Asset.DoesNotExist:
+                pass
+        
+        return super().validate(attrs)
+
 class RejectSerializer(serializers.Serializer):
     rejection_reason = serializers.CharField(required=False, allow_blank=True, default="")
+
+class ApproveSerializer(serializers.Serializer):
+    asset = serializers.UUIDField(required=False, allow_null=True)
+    notes = serializers.CharField(required=False, allow_blank=True, default="")

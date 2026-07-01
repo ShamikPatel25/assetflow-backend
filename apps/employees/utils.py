@@ -1,4 +1,5 @@
 import random
+from apps.employees.models import Employee
 
 def generate_employee_code(first_name: str, last_name: str) -> str:
     """
@@ -6,7 +7,6 @@ def generate_employee_code(first_name: str, last_name: str) -> str:
     Format: First initial + Last initial + 3 random digits
     Example: Krish Patel -> KP029
     """
-    from apps.employees.models import Employee  # avoid circular import
 
     first_initial = first_name[0].upper() if first_name else "X"
     last_initial  = last_name[0].upper()  if last_name  else "X"

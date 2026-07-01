@@ -2,6 +2,8 @@ import jwt
 from django.conf import settings
 from rest_framework import serializers
 from django.contrib.auth import get_user_model
+from apps.accounts.utils import send_invitation_email
+from django.db import connection
 
 User = get_user_model()
 
@@ -75,8 +77,6 @@ class InvitationResendSerializer(serializers.Serializer):
         return value
 
     def save(self):
-        from apps.accounts.utils import send_invitation_email
-        from django.db import connection
 
         user = self.context["user"]
         tenant = connection.tenant

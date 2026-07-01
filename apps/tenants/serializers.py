@@ -1,6 +1,17 @@
 from rest_framework import serializers
 
 from apps.tenants.models import Organization, Domain
+from apps.accounts.utils import send_invitation_email
+from apps.employees.models import TenantUser
+from apps.employees.models import TenantUser, Employee
+from apps.employees.utils import generate_employee_code
+from django.conf import settings
+from django.contrib.auth import get_user_model
+from django.core.mail import send_mail
+from django.db import connection
+from django.utils.crypto import get_random_string
+from django_tenants.utils import tenant_context
+import re
 
 
 class OrganizationCreateSerializer(serializers.ModelSerializer):
@@ -26,7 +37,6 @@ class OrganizationCreateSerializer(serializers.ModelSerializer):
 
     def validate_subdomain(self, value):
         value = value.lower().strip()
-        import re
         if not re.match(r'^[a-z0-9]+$', value):
             raise serializers.ValidationError("Subdomain can only contain lowercase letters and numbers. Special characters are not allowed.")
 
@@ -35,7 +45,6 @@ class OrganizationCreateSerializer(serializers.ModelSerializer):
             raise serializers.ValidationError("This subdomain is already in use.")
 
         # Check if the schema already exists in the database to prevent dangling schema errors
-        from django.db import connection
         schema_name = f"tenant_{value}"
         with connection.cursor() as cursor:
             cursor.execute("SELECT schema_name FROM information_schema.schemata WHERE schema_name = %s", [schema_name])
@@ -44,12 +53,14 @@ class OrganizationCreateSerializer(serializers.ModelSerializer):
 
         return value
 
+    def validate_org_admin_email(self, value):
+        if " " in value:
+            raise serializers.ValidationError("Email cannot contain spaces.")
+        if any(char.isupper() for char in value):
+            raise serializers.ValidationError("Email must be in lowercase.")
+        return value
+
     def create(self, validated_data):
-        from django.contrib.auth import get_user_model
-        from django_tenants.utils import tenant_context
-        from django.core.mail import send_mail
-        from django.utils.crypto import get_random_string
-        from django.conf import settings
 
         subdomain = validated_data.pop("subdomain")
         org_admin_email = validated_data.pop("org_admin_email")
@@ -68,12 +79,9 @@ class OrganizationCreateSerializer(serializers.ModelSerializer):
             is_primary=True,
         )
 
-        from apps.accounts.utils import send_invitation_email
 
         # Switch to the new tenant schema and create the first Org Admin user
         with tenant_context(org):
-            from apps.employees.models import TenantUser, Employee
-            from apps.employees.utils import generate_employee_code
             
             admin_user = TenantUser(
                 email=org_admin_email,
@@ -131,7 +139,6 @@ class OrganizationSuperAdminUpdateSerializer(serializers.ModelSerializer):
 
     def validate_subdomain(self, value):
         value = value.lower().strip()
-        import re
         if not re.match(r'^[a-z0-9]+$', value):
             raise serializers.ValidationError("Subdomain can only contain lowercase letters and numbers. Special characters are not allowed.")
 
@@ -141,7 +148,6 @@ class OrganizationSuperAdminUpdateSerializer(serializers.ModelSerializer):
 
         schema_name = f"tenant_{value}"
         if not self.instance or self.instance.schema_name != schema_name:
-            from django.db import connection
             with connection.cursor() as cursor:
                 cursor.execute("SELECT schema_name FROM information_schema.schemata WHERE schema_name = %s", [schema_name])
                 if cursor.fetchone():
@@ -149,10 +155,23 @@ class OrganizationSuperAdminUpdateSerializer(serializers.ModelSerializer):
 
         return value
 
+    def validate_org_admin_email(self, value):
+        if " " in value:
+            raise serializers.ValidationError("Email cannot contain spaces.")
+        if any(char.isupper() for char in value):
+            raise serializers.ValidationError("Email must be in lowercase.")
+        return value
+
+    def validate_contact_phone(self, value):
+        if not value:
+            return value
+        if not value.isdigit():
+            raise serializers.ValidationError("Only numbers are allowed.")
+        if not (10 <= len(value) <= 15):
+            raise serializers.ValidationError("10-15 digits only allowed.")
+        return value
+
     def update(self, instance, validated_data):
-        from django.contrib.auth import get_user_model
-        from django_tenants.utils import tenant_context
-        from django.db import connection
 
         new_subdomain = validated_data.pop("subdomain", None)
         new_admin_email = validated_data.pop("org_admin_email", None)
@@ -188,7 +207,6 @@ class OrganizationSuperAdminUpdateSerializer(serializers.ModelSerializer):
         # Handle Org Admin email change
         if new_admin_email:
             with tenant_context(instance):
-                from apps.employees.models import TenantUser
                 # Find an existing org admin to update
                 admin_user = TenantUser.objects.filter(role=TenantUser.Role.ORGANIZATION_ADMIN).first()
                 if admin_user:
@@ -223,6 +241,15 @@ class OrganizationTenantUpdateSerializer(serializers.ModelSerializer):
         if domain_obj:
             ret['subdomain'] = domain_obj.domain.replace('.localhost', '')
         return ret
+
+    def validate_contact_phone(self, value):
+        if not value:
+            return value
+        if not value.isdigit():
+            raise serializers.ValidationError("Only numbers are allowed.")
+        if not (10 <= len(value) <= 15):
+            raise serializers.ValidationError("10-15 digits only allowed.")
+        return value
 
 
 class DomainSerializer(serializers.ModelSerializer):

@@ -1,7 +1,12 @@
 from rest_framework import serializers
 
 from apps.base.serializers import BaseModelSerializer
-from apps.employees.models import Department, Employee
+from apps.employees.models import Department, Employee, TenantUser
+from apps.accounts.utils import send_invitation_email
+from apps.employees.utils import generate_employee_code
+from django.db import connection
+from django.db import transaction
+import uuid
 
 
 class DepartmentSerializer(BaseModelSerializer):
@@ -44,10 +49,18 @@ class EmployeeSerializer(BaseModelSerializer):
             data["email"] = instance.user.email
         return data
 
+    def validate_phone(self, value):
+        if not value:
+            return value
+        if not value.isdigit():
+            raise serializers.ValidationError("Only numbers are allowed.")
+        if not (10 <= len(value) <= 15):
+            raise serializers.ValidationError("10-15 digits only allowed.")
+        return value
+
     def validate(self, data):
         request = self.context.get("request")
         if request and self.instance:
-            from apps.employees.models import TenantUser
             
             # Prevent HR Managers from editing Org Admins
             if request.user.role == TenantUser.Role.HR_MANAGER:
@@ -63,9 +76,6 @@ class EmployeeSerializer(BaseModelSerializer):
         return data
 
     def update(self, instance, validated_data):
-        from django.db import transaction
-        from apps.accounts.utils import send_invitation_email
-        from django.db import connection
         
         new_email = validated_data.pop("email", None)
         
@@ -94,7 +104,6 @@ class EmployeeMinimalSerializer(serializers.ModelSerializer):
 
 
 class EmployeeCreateSerializer(serializers.Serializer):
-    from apps.employees.models import TenantUser
     
     first_name = serializers.CharField(required=True, max_length=100)
     last_name = serializers.CharField(required=True, max_length=100)
@@ -113,29 +122,39 @@ class EmployeeCreateSerializer(serializers.Serializer):
     ], required=True)
 
     def validate_email(self, value):
-        from apps.employees.models import TenantUser
+        if " " in value:
+            raise serializers.ValidationError("Email cannot contain spaces.")
+        if any(char.isupper() for char in value):
+            raise serializers.ValidationError("Email must be in lowercase.")
+            
         if TenantUser.objects.filter(email=value).exists():
             raise serializers.ValidationError("This email is already in use by another user.")
         return value
 
     def validate_role(self, value):
-        from apps.employees.models import TenantUser
         request = self.context.get("request")
         if request and request.user.role == TenantUser.Role.HR_MANAGER:
             if value != TenantUser.Role.EMPLOYEE:
                 raise serializers.ValidationError("HR Managers can only create standard Employees.")
         return value
 
+    def validate_phone(self, value):
+        if not value:
+            return value
+        if not value.isdigit():
+            raise serializers.ValidationError("Only numbers are allowed.")
+        if not (10 <= len(value) <= 15):
+            raise serializers.ValidationError("10-15 digits only allowed.")
+        return value
+
     def validate_department(self, value):
         if not value:
             return None
-        import uuid
         try:
             val = uuid.UUID(value)
         except ValueError:
             raise serializers.ValidationError("Must be a valid UUID.")
             
-        from apps.employees.models import Department
         if not Department.objects.filter(id=val).exists():
             raise serializers.ValidationError("Invalid department ID.")
         return val
@@ -143,23 +162,16 @@ class EmployeeCreateSerializer(serializers.Serializer):
     def validate_manager(self, value):
         if not value:
             return None
-        import uuid
         try:
             val = uuid.UUID(value)
         except ValueError:
             raise serializers.ValidationError("Must be a valid UUID.")
             
-        from apps.employees.models import Employee
         if not Employee.objects.filter(id=val).exists():
             raise serializers.ValidationError("Invalid manager ID.")
         return val
 
     def create(self, validated_data):
-        from django.db import transaction
-        from apps.employees.models import TenantUser, Employee, Department
-        from apps.employees.utils import generate_employee_code
-        from apps.accounts.utils import send_invitation_email
-        from django.db import connection
         
         email = validated_data.pop("email")
         role = validated_data.pop("role")
@@ -201,5 +213,4 @@ class EmployeeCreateSerializer(serializers.Serializer):
 
     def to_representation(self, instance):
         # Use standard EmployeeSerializer for the output response
-        from apps.employees.serializers import EmployeeSerializer
         return EmployeeSerializer(instance, context=self.context).data

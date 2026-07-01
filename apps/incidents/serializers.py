@@ -24,6 +24,9 @@ class IncidentSerializer(BaseModelSerializer):
             "resolved_at", "closed_at",
             "ai_category", "ai_summary", "ai_confidence", "ai_model_version",
         ]
+        extra_kwargs = {
+            "reported_by": {"required": False, "allow_null": True}
+        }
 
     def get_reporter_name(self, obj) -> str | None:
         if obj.reported_by:
@@ -34,6 +37,21 @@ class IncidentSerializer(BaseModelSerializer):
         if obj.assigned_to:
             return obj.assigned_to.get_full_name()
         return None
+
+    def validate(self, data):
+        request = self.context.get("request")
+        if request and hasattr(request, "user") and getattr(request.user, "role", None) == "EMPLOYEE":
+            employee = getattr(request.user, "employee_profile", None)
+            
+            reported_by = data.get("reported_by")
+            if reported_by and employee and reported_by != employee:
+                raise serializers.ValidationError({"reported_by": "You can only report an incident for yourself."})
+            
+            asset = data.get("asset")
+            if asset and employee and asset.current_owner != employee:
+                raise serializers.ValidationError({"asset": "You can only report an incident for an asset that is currently allocated to you."})
+                
+        return data
 
 
 class RepairRecordSerializer(BaseModelSerializer):

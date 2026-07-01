@@ -26,9 +26,10 @@ class AFValidationError(APIException):
         if not app_code:
             logger.error("Validation Error: %s", detail)
 
-        self.detail = {"message": resolved, "code": self.app_code}
+        self.detail = {"message": resolved}
+        if self.app_code != NO_CODE:
+            self.detail["code"] = self.app_code
 
 
 class AFDataIntegrityError(Exception):
     """Raised when a data integrity expectation is violated."""
-    pass

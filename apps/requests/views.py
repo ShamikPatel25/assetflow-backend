@@ -1,18 +1,19 @@
 from rest_framework import status
 from rest_framework.decorators import action
+from django.core.exceptions import ValidationError
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from drf_spectacular.utils import extend_schema_view, extend_schema
 
 from apps.assets.models import AssetCategory, Asset
-from apps.base.permissions import IsOrganizationAdmin, IsOrgAdminOrHR
+from apps.base.permissions import IsOrgAdminOrHR
 from apps.base.views import CRUDViewSet
-from apps.employees.models import Employee
 from apps.requests.models import AssetRequest
 from apps.requests.serializers import (
     AssetRequestSerializer,
     AssetRequestCreateSerializer,
     RejectSerializer,
+    ApproveSerializer,
 )
 from apps.requests.services import AssetRequestService
 
@@ -32,7 +33,7 @@ from apps.requests.services import AssetRequestService
     approve=extend_schema(
         tags=["Asset Requests"],
         summary="Approve Asset Request",
-        request=None,
+        request=ApproveSerializer,
         responses={200: AssetRequestSerializer},
     ),
     reject=extend_schema(
@@ -91,6 +92,19 @@ class AssetRequestViewSet(CRUDViewSet):
                 status=status.HTTP_400_BAD_REQUEST,
             )
 
+        category_id = serializer.validated_data.get("category")
+        if category_id:
+            has_pending = AssetRequest.objects.filter(
+                requested_by=employee,
+                category_id=category_id,
+                status=AssetRequest.Status.PENDING
+            ).exists()
+            if has_pending:
+                return Response(
+                    {"category": ["You already have a pending request for this category."]},
+                    status=status.HTTP_400_BAD_REQUEST
+                )
+
         category = None
         preferred_asset = None
         if serializer.validated_data.get("category"):
@@ -115,8 +129,19 @@ class AssetRequestViewSet(CRUDViewSet):
             permission_classes=[IsAuthenticated, IsOrgAdminOrHR])
     def approve(self, request, pk=None):
         request_obj = self.get_object()
+        serializer = ApproveSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        
+        asset_id = serializer.validated_data.get("asset")
+        asset_notes = serializer.validated_data.get("notes")
+        
         approver = getattr(request.user, "employee_profile", None)
-        request_obj = AssetRequestService.approve(request_obj, approved_by=approver)
+        request_obj = AssetRequestService.approve(
+            request_obj, 
+            approved_by=approver,
+            asset_id=asset_id,
+            notes=asset_notes
+        )
         return Response(AssetRequestSerializer(request_obj).data)
 
     @action(detail=True, methods=["post"], url_path="reject",
@@ -135,6 +160,28 @@ class AssetRequestViewSet(CRUDViewSet):
 
     @action(detail=True, methods=["post"], url_path="cancel")
     def cancel(self, request, pk=None):
-        request_obj = self.get_object()
+        try:
+            request_obj = AssetRequest.objects.get(pk=pk)
+        except (AssetRequest.DoesNotExist, ValidationError, ValueError):
+            return Response(
+                {"message": "Asset Request not found."},
+                status=status.HTTP_404_NOT_FOUND
+            )
+        
+        user = request.user
+        employee = getattr(user, "employee_profile", None)
+        
+        if not employee or request_obj.requested_by != employee:
+            if getattr(user, "role", "EMPLOYEE") == "EMPLOYEE":
+                return Response(
+                    {"message": "You can only cancel your own asset request."},
+                    status=status.HTTP_403_FORBIDDEN
+                )
+            else:
+                return Response(
+                    {"message": "Only the requester can cancel this request."},
+                    status=status.HTTP_403_FORBIDDEN
+                )
+            
         request_obj = AssetRequestService.cancel(request_obj)
         return Response(AssetRequestSerializer(request_obj).data)

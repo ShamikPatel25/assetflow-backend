@@ -2,7 +2,7 @@ from django.core.exceptions import ObjectDoesNotExist
 from rest_framework import serializers
 
 from apps.base import errors
-from apps.base.errors import AFValidationError, AFDataIntegrityError
+from apps.base.errors import AFValidationError
 from apps.base.functions import get_user_display, extract_nested_fields
 
 
@@ -62,7 +62,7 @@ class BaseSerializer(serializers.Serializer):
             "updated_by", "is_active", "is_deleted",
         ) + args
 
-    # ── Private helpers ───────────────────────────────────────────
+    # Private helpers
 
     def _apply_allowed_fields(self):
         if not self._allowed_field_map:

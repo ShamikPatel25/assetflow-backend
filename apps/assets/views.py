@@ -1,4 +1,7 @@
+from django.http import Http404
 from rest_framework.permissions import IsAuthenticated
+from rest_framework.response import Response
+from rest_framework import status
 from drf_spectacular.utils import extend_schema_view, extend_schema
 
 from apps.base.permissions import IsOrgAdminOrHROrReadOnly
@@ -24,6 +27,20 @@ class AssetCategoryViewSet(CRUDViewSet):
     search_fields = ["name", "code"]
     ordering_fields = ["name", "code", "created_at"]
     filterset_fields = ["category_type", "is_active", "parent"]
+
+    def destroy(self, request, *args, **kwargs):
+        try:
+            instance = self.get_object()
+        except Http404:
+            return super().destroy(request, *args, **kwargs)
+
+        if instance.children.filter(is_deleted=False).exists():
+            return Response(
+                {"message": "Cannot delete category because it has active child categories. Please delete them first."},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+            
+        return super().destroy(request, *args, **kwargs)
 
 
 @extend_schema_view(

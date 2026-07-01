@@ -5,6 +5,7 @@ from apps.base.permissions import IsOrgAdminOrHR
 from apps.base.views import CRUDViewSet
 from apps.employees.models import Department, Employee
 from apps.employees.serializers import DepartmentSerializer, EmployeeSerializer
+from apps.employees.serializers import EmployeeCreateSerializer
 
 
 @extend_schema_view(
@@ -46,13 +47,27 @@ class EmployeeViewSet(CRUDViewSet):
 
     def get_serializer_class(self):
         if self.action == "create":
-            from apps.employees.serializers import EmployeeCreateSerializer
             return EmployeeCreateSerializer
         return super().get_serializer_class()
 
     def perform_destroy(self, instance):
+        from rest_framework.exceptions import PermissionDenied
+        from apps.employees.models import TenantUser
+
+        request_user = self.request.user
+        target_user = instance.user
+
+        if request_user == target_user:
+            raise PermissionDenied("You cannot delete your own account.")
+
+        if target_user.role == TenantUser.Role.ORGANIZATION_ADMIN:
+            if request_user.role == TenantUser.Role.HR_MANAGER:
+                raise PermissionDenied("HR Managers cannot delete Organization Admins.")
+            if request_user.role == TenantUser.Role.ORGANIZATION_ADMIN:
+                raise PermissionDenied("Organization Admins cannot delete other Organization Admins.")
+
         # Soft delete the employee profile
         super().perform_destroy(instance)
         # Deactivate the associated user account to block login
         instance.user.is_active = False
-        instance.user.save()
+        instance.user.save(update_fields=["is_active"])

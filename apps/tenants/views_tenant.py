@@ -12,8 +12,8 @@ class TenantOrganizationSettingsView(generics.RetrieveUpdateAPIView):
     Org Admin manages their own organization's settings.
     GET    /api/v1/organization/settings/
     PUT    /api/v1/organization/settings/
-    PATCH  /api/v1/organization/settings/
     """
+    http_method_names = ["get", "put", "options", "head"]
     serializer_class = OrganizationTenantUpdateSerializer
     permission_classes = [IsAuthenticated, IsOrgAdminOrReadOnly]
 

@@ -4,7 +4,7 @@ from django.utils import timezone
 from django_tenants.utils import get_tenant_model, tenant_context
 
 from apps.assets.models import Asset
-from apps.licenses.models import License
+from apps.licenses.models import SoftwareLicense
 from apps.notifications.services import NotificationService
 
 class Command(BaseCommand):
@@ -39,7 +39,7 @@ class Command(BaseCommand):
                     asset_count += 1
                 
                 # Check for expiring licenses
-                expiring_licenses = License.objects.filter(
+                expiring_licenses = SoftwareLicense.objects.filter(
                     is_active=True,
                     is_deleted=False,
                     expiry_date__isnull=False,

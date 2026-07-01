@@ -2,6 +2,8 @@ from django.contrib.auth import authenticate
 from rest_framework import serializers
 
 from apps.accounts.models import User
+from apps.accounts.utils import send_invitation_email
+from django.db import connection
 
 
 class LoginSerializer(serializers.Serializer):
@@ -31,6 +33,15 @@ class UserSerializer(serializers.ModelSerializer):
         ]
         read_only_fields = ["id", "last_login", "created_at", "updated_at"]
 
+    def validate_phone(self, value):
+        if not value:
+            return value
+        if not value.isdigit():
+            raise serializers.ValidationError("Only numbers are allowed.")
+        if not (10 <= len(value) <= 15):
+            raise serializers.ValidationError("10-15 digits only allowed.")
+        return value
+
 
 class UserCreateSerializer(serializers.ModelSerializer):
     class Meta:
@@ -41,12 +52,23 @@ class UserCreateSerializer(serializers.ModelSerializer):
         ]
         read_only_fields = ["id"]
 
+    def validate_phone(self, value):
+        if not value:
+            return value
+        if not value.isdigit():
+            raise serializers.ValidationError("Only numbers are allowed.")
+        if not (10 <= len(value) <= 15):
+            raise serializers.ValidationError("10-15 digits only allowed.")
+        return value
+
     def validate_email(self, value):
-        return value.lower().strip()
+        if " " in value:
+            raise serializers.ValidationError("Email cannot contain spaces.")
+        if any(char.isupper() for char in value):
+            raise serializers.ValidationError("Email must be in lowercase.")
+        return value
 
     def create(self, validated_data):
-        from apps.accounts.utils import send_invitation_email
-        from django.db import connection
 
         user = User(**validated_data)
         user.is_active = False  # Account must be activated via link

@@ -8,10 +8,11 @@ from rest_framework.response import Response
 from drf_spectacular.utils import extend_schema_view, extend_schema
 
 from apps.base.errors import AFValidationError, error_codes
-from apps.base.permissions import IsOrganizationAdmin, IsOrgAdminOrReadOnly, IsOrgAdminOrHR
+from apps.base.permissions import IsOrgAdminOrReadOnly, IsOrgAdminOrHR
 from apps.base.views import CRUDViewSet
 from apps.incidents.models import Incident, RepairRecord
 from apps.incidents.serializers import IncidentSerializer, RepairRecordSerializer
+from apps.notifications.services import NotificationService
 
 
 @extend_schema_view(
@@ -59,10 +60,18 @@ class IncidentViewSet(CRUDViewSet):
         return qs
 
     def perform_create(self, serializer):
-        serializer.save(
+        employee = getattr(self.request.user, "employee_profile", None)
+        reported_by = serializer.validated_data.get("reported_by") or employee
+        if not reported_by:
+            raise AFValidationError("You must have an employee profile to report an incident.")
+        
+        instance = serializer.save(
             incident_number=f"INC-{uuid.uuid4().hex[:8].upper()}",
             created_by=self.request.user,
+            reported_by=reported_by
         )
+
+        NotificationService.notify_incident_reported(instance)
 
     def perform_update(self, serializer):
         incident = self.get_object()
@@ -72,6 +81,8 @@ class IncidentViewSet(CRUDViewSet):
                 app_code=error_codes.DATA_VALIDATION_FAILED,
             )
         super().perform_update(serializer)
+
+        NotificationService.notify_incident_updated(incident)
 
     @action(detail=True, methods=["post"], url_path="resolve",
             permission_classes=[IsAuthenticated, IsOrgAdminOrHR])
@@ -85,6 +96,9 @@ class IncidentViewSet(CRUDViewSet):
         incident.status = Incident.Status.RESOLVED
         incident.resolved_at = timezone.now()
         incident.save(update_fields=["status", "resolved_at", "updated_at"])
+
+        NotificationService.notify_incident_updated(incident)
+
         return Response(IncidentSerializer(incident).data)
 
     @action(detail=True, methods=["post"], url_path="close",
@@ -99,6 +113,9 @@ class IncidentViewSet(CRUDViewSet):
         incident.status = Incident.Status.CLOSED
         incident.closed_at = timezone.now()
         incident.save(update_fields=["status", "closed_at", "updated_at"])
+
+        NotificationService.notify_incident_updated(incident)
+
         return Response(IncidentSerializer(incident).data)
 
 
