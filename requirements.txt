@@ -1,0 +1,26 @@
+# Core
+Django==5.1.15
+djangorestframework==3.17.1
+djangorestframework-simplejwt==5.5.1
+
+# Multi-tenancy
+django-tenants==3.10.1
+
+# Database driver (PostgreSQL)
+psycopg[binary]==3.3.4
+
+# API tooling
+drf-spectacular==0.29.0
+django-filter==25.1
+django-cors-headers==4.9.0
+
+# Config
+python-dotenv==1.2.2
+
+# --- Dev / test (optional) ---
+# pytest==9.1.1
+# pytest-django==4.12.0
+# pytest-cov==7.1.0
+# coverage==7.14.3
+# ruff==0.15.18
+# vulture==2.16

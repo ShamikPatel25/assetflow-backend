@@ -18,12 +18,20 @@ db.sqlite3
 staticfiles/
 mediafiles/
 
-# IDE
+# IDE / Tools
 .vscode/
 .idea/
 *.swp
 *.swo
 *~
+.qodo/
+
+# Caches / Test artifacts
+.ruff_cache/
+.pytest_cache/
+.coverage
+coverage.json
+htmlcov/
 
 # OS
 .DS_Store
