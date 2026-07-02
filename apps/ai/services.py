@@ -2,8 +2,6 @@ import os
 import json
 import urllib.request
 import urllib.error
-from django.conf import settings
-from rest_framework.exceptions import APIException
 
 from apps.requests.models import AssetRequest
 from apps.employees.models import Employee
@@ -11,6 +9,8 @@ from apps.assets.models import Asset
 from apps.allocations.models import AssetAllocation
 from apps.incidents.models import Incident
 import random
+
+from apps.base.errors import AFValidationError, error_codes
 
 
 class RiskAssessmentService:
@@ -23,7 +23,9 @@ class RiskAssessmentService:
                 "requested_by", "requested_by__department", "category"
             ).get(id=request_id)
         except AssetRequest.DoesNotExist:
-            raise APIException("Asset Request not found.")
+            raise AFValidationError(
+                "Asset Request not found.", app_code=error_codes.RECORD_NOT_FOUND
+            )
 
         employee = asset_request.requested_by
         
@@ -37,7 +39,7 @@ class RiskAssessmentService:
         )
 
         # Build Context String
-        context = f"Action: Approve Asset Request\n"
+        context = "Action: Approve Asset Request\n"
         context += f"Employee: {employee.get_full_name()} (Designation: {employee.designation}, Dept: {employee.department.name if employee.department else 'N/A'})\n"
         context += f"Requested Category: {asset_request.category.name if asset_request.category else 'General'}\n"
         context += f"Reason Given: {asset_request.reason}\n\n"
@@ -58,7 +60,9 @@ class RiskAssessmentService:
             employee = Employee.objects.select_related("department").get(id=employee_id)
             asset = Asset.objects.get(id=asset_id)
         except (Employee.DoesNotExist, Asset.DoesNotExist):
-            raise APIException("Employee or Asset not found.")
+            raise AFValidationError(
+                "Employee or Asset not found.", app_code=error_codes.RECORD_NOT_FOUND
+            )
 
         # Gather Context
         active_allocations = AssetAllocation.objects.filter(
@@ -73,7 +77,7 @@ class RiskAssessmentService:
             asset=asset, is_deleted=False
         )
 
-        context = f"Action: Manually Allocate Asset to Employee\n"
+        context = "Action: Manually Allocate Asset to Employee\n"
         context += f"Target Employee: {employee.get_full_name()} (Designation: {employee.designation})\n"
         context += f"Target Asset: {asset.name} (Value: {asset.purchase_cost}, Condition: {asset.condition})\n\n"
         
@@ -111,7 +115,7 @@ class RiskAssessmentService:
             '  "risk_score": <int 0-100 (0 is safe, 100 is highly dangerous)>,\n'
             '  "risk_level": <string "LOW", "MEDIUM", or "HIGH">,\n'
             '  "recommendation": <string "APPROVE", "REVIEW", or "DENY">,\n'
-            '  "reasoning": <string explaining the logic concisely in 2-3 sentences>\n'
+            '  "reasoning": <string with a simple, easy-to-understand explanation broken into 2-3 short numbered points. Avoid complex jargon.>\n'
             "}"
         )
 
@@ -148,6 +152,14 @@ class RiskAssessmentService:
                 "risk_level": "MEDIUM",
                 "recommendation": "REVIEW",
                 "reasoning": f"AI API network failure: {str(e)}."
+            }
+        except TimeoutError:
+            # Fallback on timeout
+            return {
+                "risk_score": 50,
+                "risk_level": "MEDIUM",
+                "recommendation": "REVIEW",
+                "reasoning": "AI API request timed out after 15 seconds. Falling back to manual review."
             }
 
     @classmethod

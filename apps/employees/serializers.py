@@ -1,6 +1,6 @@
 from rest_framework import serializers
 
-from apps.base.serializers import BaseModelSerializer
+from apps.base.serializers import BaseModelSerializer, FlexibleDateField
 from apps.employees.models import Department, Employee, TenantUser
 from apps.accounts.utils import send_invitation_email
 from apps.employees.utils import generate_employee_code
@@ -10,43 +10,50 @@ import uuid
 
 
 class DepartmentSerializer(BaseModelSerializer):
-    manager_name = serializers.SerializerMethodField()
 
     class Meta:
         model = Department
         fields = BaseModelSerializer.base_fields(
             "name", "code", "description",
-            "manager", "manager_name",
+            "manager",
         )
 
-    def get_manager_name(self, obj) -> str | None:
-        if obj.manager:
-            return obj.manager.get_full_name()
-        return None
+    def to_representation(self, instance):
+        data = super().to_representation(instance)
+        if instance.manager:
+            data["manager"] = {
+                "id": instance.manager_id,
+                "name": instance.manager.get_full_name()
+            }
+        return data
 
 
 class EmployeeSerializer(BaseModelSerializer):
-    department_name = serializers.CharField(source="department.name", read_only=True, default=None)
-    manager_name = serializers.SerializerMethodField()
     email = serializers.EmailField(required=False)
+    exit_date = FlexibleDateField(required=False, allow_null=True, default=None)
 
     class Meta:
         model = Employee
         fields = BaseModelSerializer.base_fields(
             "user", "email", "employee_code", "first_name", "last_name",
-            "phone", "designation", "department", "department_name",
-            "manager", "manager_name", "joining_date", "exit_date",
+            "phone", "designation", "department",
+            "manager", "joining_date", "exit_date",
         )
-
-    def get_manager_name(self, obj) -> str | None:
-        if obj.manager:
-            return obj.manager.get_full_name()
-        return None
 
     def to_representation(self, instance):
         data = super().to_representation(instance)
         if instance.user:
             data["email"] = instance.user.email
+        if instance.department:
+            data["department"] = {
+                "id": instance.department_id,
+                "name": instance.department.name
+            }
+        if instance.manager:
+            data["manager"] = {
+                "id": instance.manager_id,
+                "name": instance.manager.get_full_name()
+            }
         return data
 
     def validate_phone(self, value):

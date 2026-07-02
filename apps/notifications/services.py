@@ -1,4 +1,3 @@
-from django.db import transaction
 from apps.notifications.models import Notification
 from apps.employees.models import TenantUser
 
@@ -102,17 +101,20 @@ class NotificationService:
     def notify_incident_reported(incident):
         """Notify HR Managers that a new incident was reported."""
         hr_managers = NotificationService._get_hr_managers()
+        asset_phrase = (
+            f"for asset: {incident.asset.name}" if incident.asset else "(no asset linked)"
+        )
         notifications = []
         for hr in hr_managers:
             notifications.append(
                 Notification(
                     recipient=hr,
                     title="New Incident Reported",
-                    message=f"Employee {incident.reported_by.get_full_name()} reported an incident for asset: {incident.asset.name}.",
+                    message=f"Employee {incident.reported_by.get_full_name()} reported an incident {asset_phrase}: {incident.title}.",
                     type=Notification.Type.INCIDENT_REPORTED,
                     payload={
                         "incident_id": str(incident.id),
-                        "asset_id": str(incident.asset.id)
+                        "asset_id": str(incident.asset.id) if incident.asset else None,
                     }
                 )
             )
@@ -123,14 +125,15 @@ class NotificationService:
     def notify_incident_updated(incident):
         """Notify the employee that their incident was updated (resolved/closed)."""
         recipient = incident.reported_by.user
+        subject = incident.asset.name if incident.asset else incident.incident_number
         Notification.objects.create(
             recipient=recipient,
             title=f"Incident {incident.status.title()}",
-            message=f"Your incident for {incident.asset.name} is now {incident.status.title()}.",
+            message=f"Your incident for {subject} is now {incident.status.title()}.",
             type=Notification.Type.INCIDENT_UPDATED,
             payload={
                 "incident_id": str(incident.id),
-                "asset_id": str(incident.asset.id)
+                "asset_id": str(incident.asset.id) if incident.asset else None,
             }
         )
 
@@ -144,7 +147,7 @@ class NotificationService:
                 Notification(
                     recipient=hr,
                     title="License Expiring",
-                    message=f"The license for {license_obj.software_name} expires on {license_obj.expiry_date}.",
+                    message=f"The license for {license_obj.name} expires on {license_obj.expiry_date}.",
                     type=Notification.Type.LICENSE_EXPIRING,
                     payload={
                         "license_id": str(license_obj.id)

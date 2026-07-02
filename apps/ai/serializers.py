@@ -12,6 +12,14 @@ class RiskAssessmentRequestSerializer(serializers.Serializer):
     employee_id = serializers.UUIDField(required=False, allow_null=True, help_text="Required if action is ALLOCATE_ASSET")
     asset_id = serializers.UUIDField(required=False, allow_null=True, help_text="Required if action is ALLOCATE_ASSET")
 
+    def to_internal_value(self, data):
+        if hasattr(data, 'copy'):
+            data = data.copy()
+        for field in ["request_id", "employee_id", "asset_id"]:
+            if field in data and data[field] == "":
+                data[field] = None
+        return super().to_internal_value(data)
+
     def validate(self, data):
         action = data.get("action")
         if action == "APPROVE_REQUEST":

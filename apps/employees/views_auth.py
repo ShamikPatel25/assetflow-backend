@@ -6,7 +6,7 @@ from rest_framework.views import APIView
 from rest_framework_simplejwt.tokens import RefreshToken
 from drf_spectacular.utils import extend_schema
 
-from apps.employees.models import TenantUser, Employee
+from apps.employees.models import Employee
 from apps.employees.serializers_auth import (
     TenantLoginSerializer,
     TenantUserSerializer,

@@ -2,7 +2,7 @@ import jwt
 from django.conf import settings
 from rest_framework import serializers
 
-from apps.employees.models import TenantUser, Employee
+from apps.employees.models import TenantUser
 from apps.accounts.utils import send_invitation_email
 from django.db import connection
 

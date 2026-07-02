@@ -1,4 +1,4 @@
-from django.db.models import Count, Q
+from django.db.models import Count
 from rest_framework import serializers as drf_serializers
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
@@ -9,7 +9,7 @@ from apps.assets.models import Asset
 from apps.allocations.models import AssetAllocation
 from apps.employees.models import Employee
 from apps.incidents.models import Incident
-from apps.licenses.models import SoftwareLicense, LicenseAssignment
+from apps.licenses.models import SoftwareLicense
 from apps.requests.models import AssetRequest
 from apps.base.permissions import IsOrganizationAdmin
 

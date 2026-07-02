@@ -81,11 +81,25 @@ class AssetRequestViewSet(CRUDViewSet):
             return qs.none()
         return qs
 
+    def perform_update(self, serializer):
+        from apps.base.errors import AFValidationError
+        if serializer.instance.status != AssetRequest.Status.PENDING:
+            raise AFValidationError("You can only edit a pending request.")
+        super().perform_update(serializer)
+
+    def perform_destroy(self, instance):
+        from apps.base.errors import AFValidationError
+        if instance.status != AssetRequest.Status.PENDING:
+            raise AFValidationError("You can only delete a pending request.")
+        super().perform_destroy(instance)
+
     def create(self, request, *args, **kwargs):
         serializer = AssetRequestCreateSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
 
-        employee = getattr(request.user, "employee_profile", None)
+        user = request.user
+        employee = getattr(user, "employee_profile", None)
+        
         if not employee:
             return Response(
                 {"message": "No employee profile linked to this user."},
@@ -118,6 +132,7 @@ class AssetRequestViewSet(CRUDViewSet):
             preferred_asset=preferred_asset,
             reason=serializer.validated_data["reason"],
             priority=serializer.validated_data.get("priority", "MEDIUM"),
+            created_by=request.user,
         )
 
         return Response(
@@ -140,7 +155,8 @@ class AssetRequestViewSet(CRUDViewSet):
             request_obj, 
             approved_by=approver,
             asset_id=asset_id,
-            notes=asset_notes
+            notes=asset_notes,
+            updated_by=request.user
         )
         return Response(AssetRequestSerializer(request_obj).data)
 
@@ -155,6 +171,7 @@ class AssetRequestViewSet(CRUDViewSet):
             request_obj,
             rejected_by=rejector,
             rejection_reason=serializer.validated_data.get("rejection_reason", ""),
+            updated_by=request.user
         )
         return Response(AssetRequestSerializer(request_obj).data)
 
@@ -183,5 +200,5 @@ class AssetRequestViewSet(CRUDViewSet):
                     status=status.HTTP_403_FORBIDDEN
                 )
             
-        request_obj = AssetRequestService.cancel(request_obj)
+        request_obj = AssetRequestService.cancel(request_obj, updated_by=user)
         return Response(AssetRequestSerializer(request_obj).data)

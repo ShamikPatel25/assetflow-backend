@@ -1,40 +1,50 @@
 from rest_framework import serializers
 
-from apps.base.serializers import BaseModelSerializer
+from apps.base.serializers import BaseModelSerializer, FlexibleDateField
 from apps.allocations.models import AssetAllocation
 
 
 class AssetAllocationSerializer(BaseModelSerializer):
-    asset_code = serializers.CharField(source="asset.asset_code", read_only=True)
-    asset_name = serializers.CharField(source="asset.name", read_only=True)
-    employee_name = serializers.SerializerMethodField()
-    assigned_by_name = serializers.SerializerMethodField()
+    expected_return_date = FlexibleDateField(required=False, allow_null=True, default=None)
 
     class Meta:
         model = AssetAllocation
         fields = BaseModelSerializer.base_fields(
-            "allocation_number", "asset", "asset_code", "asset_name",
-            "employee", "employee_name", "assigned_by", "assigned_by_name",
+            "allocation_number", "asset",
+            "employee", "assigned_by",
             "allocated_at", "expected_return_date", "returned_at",
             "return_condition", "remarks", "status",
         )
         read_only_fields = ["allocation_number", "status", "returned_at", "assigned_by"]
 
-    def get_employee_name(self, obj) -> str | None:
-        if obj.employee:
-            return obj.employee.get_full_name()
-        return None
+    def to_representation(self, instance):
+        data = super().to_representation(instance)
+        if instance.asset:
+            data["asset"] = {
+                "id": instance.asset_id,
+                "asset_code": instance.asset.asset_code,
+                "name": instance.asset.name
+            }
+        if instance.employee:
+            data["employee"] = {
+                "id": instance.employee_id,
+                "name": instance.employee.get_full_name()
+            }
+        if instance.assigned_by:
+            data["assigned_by"] = {
+                "id": instance.assigned_by_id,
+                "name": instance.assigned_by.get_full_name()
+            }
+        return data
 
-    def get_assigned_by_name(self, obj) -> str | None:
-        if obj.assigned_by:
-            return obj.assigned_by.get_full_name()
-        return None
 
+from apps.assets.models import Asset
+from apps.employees.models import Employee
 
 class AllocateSerializer(serializers.Serializer):
-    asset = serializers.UUIDField()
-    employee = serializers.UUIDField()
-    expected_return_date = serializers.DateField(required=False, allow_null=True)
+    asset = serializers.PrimaryKeyRelatedField(queryset=Asset.objects.all())
+    employee = serializers.PrimaryKeyRelatedField(queryset=Employee.objects.all())
+    expected_return_date = FlexibleDateField(required=False, allow_null=True, default=None)
     remarks = serializers.CharField(required=False, allow_blank=True)
 
 

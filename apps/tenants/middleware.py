@@ -1,10 +1,8 @@
 import logging
 
-from django.conf import settings
 from django.db import connection
 from django.http import JsonResponse
 from django_tenants.middleware import TenantMainMiddleware
-from django_tenants.utils import get_tenant_model, get_tenant_domain_model
 
 logger = logging.getLogger(__name__)
 

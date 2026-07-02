@@ -1,6 +1,6 @@
 from rest_framework import serializers
 
-from apps.base.serializers import BaseModelSerializer
+from apps.base.serializers import BaseModelSerializer, FlexibleDateField
 from apps.incidents.models import Incident, RepairRecord
 
 
@@ -59,6 +59,8 @@ class RepairRecordSerializer(BaseModelSerializer):
         source="incident.incident_number", read_only=True
     )
     asset_code = serializers.CharField(source="asset.asset_code", read_only=True)
+    repair_start_date = FlexibleDateField(required=False, allow_null=True, default=None)
+    repair_end_date = FlexibleDateField(required=False, allow_null=True, default=None)
 
     class Meta:
         model = RepairRecord

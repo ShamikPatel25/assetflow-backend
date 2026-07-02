@@ -19,28 +19,47 @@ class SoftwareLicenseSerializer(BaseModelSerializer):
 
 
 class LicenseAssignmentSerializer(BaseModelSerializer):
-    license_name = serializers.CharField(source="license.name", read_only=True)
-    employee_name = serializers.SerializerMethodField()
-
     class Meta:
         model = LicenseAssignment
         fields = BaseModelSerializer.base_fields(
-            "license", "license_name",
-            "employee", "employee_name",
-            "asset", "assigned_by",
+            "license", "employee", "asset", "assigned_by",
             "assigned_at", "revoked_at", "status",
         )
         read_only_fields = ["assigned_at", "revoked_at", "status"]
 
-    def get_employee_name(self, obj) -> str | None:
-        if obj.employee:
-            return obj.employee.get_full_name()
-        return None
+    def to_representation(self, instance):
+        data = super().to_representation(instance)
+        if instance.license:
+            data["license"] = {
+                "id": instance.license_id,
+                "name": instance.license.name
+            }
+        if instance.employee:
+            data["employee"] = {
+                "id": instance.employee_id,
+                "name": instance.employee.get_full_name()
+            }
+        if getattr(instance, "assigned_by", None):
+            data["assigned_by"] = {
+                "id": instance.assigned_by_id,
+                "name": instance.assigned_by.get_full_name()
+            }
+        return data
 
+
+from apps.employees.models import Employee
+from apps.assets.models import Asset
 
 class AssignLicenseSerializer(serializers.Serializer):
-    employee = serializers.UUIDField()
-    asset = serializers.UUIDField(required=False, allow_null=True)
+    employee = serializers.PrimaryKeyRelatedField(queryset=Employee.objects.all())
+    asset = serializers.PrimaryKeyRelatedField(queryset=Asset.objects.all(), required=False, allow_null=True)
+
+    def to_internal_value(self, data):
+        if hasattr(data, 'copy'):
+            data = data.copy()
+        if "asset" in data and data["asset"] == "":
+            data["asset"] = None
+        return super().to_internal_value(data)
 
 
 class RevokeLicenseSerializer(serializers.Serializer):

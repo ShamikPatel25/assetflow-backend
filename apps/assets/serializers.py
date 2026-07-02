@@ -5,14 +5,22 @@ from apps.assets.models import AssetCategory, Asset
 
 
 class AssetCategorySerializer(BaseModelSerializer):
-    parent_name = serializers.CharField(source="parent.name", read_only=True, default=None)
 
     class Meta:
         model = AssetCategory
         fields = BaseModelSerializer.base_fields(
             "name", "code", "description", "category_type",
-            "parent", "parent_name",
+            "parent",
         )
+
+    def to_representation(self, instance):
+        data = super().to_representation(instance)
+        if instance.parent:
+            data["parent"] = {
+                "id": instance.parent_id,
+                "name": instance.parent.name
+            }
+        return data
 
     def validate_parent(self, value):
         if value is not None:
@@ -37,32 +45,35 @@ class AssetCategorySerializer(BaseModelSerializer):
 
 
 class AssetSerializer(BaseModelSerializer):
-    category_name = serializers.CharField(source="category.name", read_only=True, default=None)
-    owner_name = serializers.SerializerMethodField()
 
     class Meta:
         model = Asset
         ref_name = "Asset"
         fields = BaseModelSerializer.base_fields(
-            "asset_code", "category", "category_name",
+            "asset_code", "category",
             "name", "brand", "model", "serial_number",
             "purchase_date", "warranty_expiry_date",
             "purchase_cost", "currency",
             "status", "condition",
-            "current_owner", "owner_name", "current_allocation",
+            "current_owner", "current_allocation",
             "metadata",
         )
         read_only_fields = ["current_owner", "current_allocation"]
 
-    def get_owner_name(self, obj) -> str | None:
-        if obj.current_owner:
-            return obj.current_owner.get_full_name()
-        return None
-
-
-class AssetMinimalSerializer(serializers.ModelSerializer):
-    """Lightweight serializer for dropdowns and references."""
-
-    class Meta:
-        model = Asset
-        fields = ["id", "asset_code", "name", "status"]
+    def to_representation(self, instance):
+        data = super().to_representation(instance)
+        if instance.category:
+            data["category"] = {
+                "id": instance.category_id,
+                "name": instance.category.name
+            }
+        if instance.current_owner:
+            data["current_owner"] = {
+                "id": instance.current_owner_id,
+                "name": instance.current_owner.get_full_name()
+            }
+        if instance.current_allocation:
+            data["current_allocation"] = {
+                "id": instance.current_allocation_id
+            }
+        return data

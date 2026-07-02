@@ -10,9 +10,8 @@ tests must run inside a tenant schema. This conftest provides:
 
 import uuid
 import pytest
-from unittest.mock import MagicMock, patch
+from unittest.mock import patch
 from django.db import connection
-from django.test.utils import override_settings
 
 
 # ---------------------------------------------------------------------------

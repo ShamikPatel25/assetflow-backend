@@ -3,7 +3,7 @@ from django.db import transaction
 from django.utils import timezone
 
 from apps.requests.models import AssetRequest
-from apps.base.errors import AFValidationError, error_codes
+from apps.base.errors import AFValidationError
 from apps.allocations.services import AllocationService
 from apps.assets.models import Asset
 from apps.notifications.services import NotificationService
@@ -14,7 +14,7 @@ class AssetRequestService:
 
     @staticmethod
     def create_request(employee, category=None, preferred_asset=None,
-                       reason="", priority="MEDIUM"):
+                       reason="", priority="MEDIUM", created_by=None):
         request_obj = AssetRequest.objects.create(
             request_number=f"REQ-{uuid.uuid4().hex[:8].upper()}",
             requested_by=employee,
@@ -23,6 +23,7 @@ class AssetRequestService:
             reason=reason,
             priority=priority,
             status=AssetRequest.Status.PENDING,
+            created_by=created_by,
         )
 
         NotificationService.notify_request_submitted(request_obj)
@@ -30,7 +31,7 @@ class AssetRequestService:
         return request_obj
 
     @staticmethod
-    def approve(request_obj, approved_by, asset_id=None, notes=""):
+    def approve(request_obj, approved_by, asset_id=None, notes="", updated_by=None):
         if request_obj.status != AssetRequest.Status.PENDING:
             if request_obj.status == AssetRequest.Status.REJECTED:
                 msg = "This request is already rejected."
@@ -76,8 +77,10 @@ class AssetRequestService:
             
             request_obj.allocation = allocation
             
+            request_obj.updated_by = updated_by
+            
             request_obj.save(update_fields=[
-                "status", "approved_by", "approved_at", "updated_at", "allocation"
+                "status", "approved_by", "approved_at", "updated_at", "allocation", "updated_by"
             ])
 
         NotificationService.notify_request_approved(request_obj)
@@ -85,7 +88,7 @@ class AssetRequestService:
         return request_obj
 
     @staticmethod
-    def reject(request_obj, rejected_by, rejection_reason=""):
+    def reject(request_obj, rejected_by, rejection_reason="", updated_by=None):
         if request_obj.status != AssetRequest.Status.PENDING:
             if request_obj.status == AssetRequest.Status.REJECTED:
                 msg = "This request is already rejected."
@@ -100,9 +103,10 @@ class AssetRequestService:
             request_obj.rejected_by = rejected_by
             request_obj.rejected_at = timezone.now()
             request_obj.rejection_reason = rejection_reason
+            request_obj.updated_by = updated_by
             request_obj.save(update_fields=[
                 "status", "rejected_by", "rejected_at",
-                "rejection_reason", "updated_at",
+                "rejection_reason", "updated_at", "updated_by"
             ])
 
         NotificationService.notify_request_rejected(request_obj)
@@ -110,19 +114,19 @@ class AssetRequestService:
         return request_obj
 
     @staticmethod
-    def cancel(request_obj):
-        if request_obj.status not in (
-            AssetRequest.Status.PENDING,
-            AssetRequest.Status.APPROVED,
-        ):
+    def cancel(request_obj, updated_by=None):
+        if request_obj.status != AssetRequest.Status.PENDING:
             if request_obj.status == AssetRequest.Status.REJECTED:
                 msg = "This request is already rejected."
             elif request_obj.status == AssetRequest.Status.CANCELLED:
                 msg = "This request is already cancelled."
+            elif request_obj.status == AssetRequest.Status.APPROVED:
+                msg = "This request is already approved and cannot be cancelled."
             else:
                 msg = f"Cannot cancel request with status {request_obj.status}."
             raise AFValidationError(msg)
 
         request_obj.status = AssetRequest.Status.CANCELLED
-        request_obj.save(update_fields=["status", "updated_at"])
+        request_obj.updated_by = updated_by
+        request_obj.save(update_fields=["status", "updated_at", "updated_by"])
         return request_obj

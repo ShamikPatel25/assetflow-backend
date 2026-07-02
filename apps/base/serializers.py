@@ -6,6 +6,15 @@ from apps.base.errors import AFValidationError
 from apps.base.functions import get_user_display, extract_nested_fields
 
 
+class FlexibleDateField(serializers.DateField):
+    """A DateField that treats empty strings as None to prevent validation errors from frontend clients."""
+    
+    def to_internal_value(self, value):
+        if value == "":
+            return None
+        return super().to_internal_value(value)
+
+
 class BaseSerializer(serializers.Serializer):
     """Base serializer with field filtering and audit field display."""
 
@@ -42,14 +51,6 @@ class BaseSerializer(serializers.Serializer):
                 except Exception:
                     pass
         return data
-
-    def validate_serializer(self):
-        if not self.is_valid(raise_exception=True):
-            err_dict = dict(self.errors)
-            field = list(err_dict.keys())[0]
-            msg = f"{field.split('__')[0]} - {err_dict[field][0]}"
-            raise AFValidationError(msg)
-        return True, None
 
     @staticmethod
     def basic_fields(*args):
@@ -150,18 +151,3 @@ class BaseModelSerializer(serializers.ModelSerializer, BaseSerializer):
             except ObjectDoesNotExist:
                 pass
         return is_violated
-
-
-class ReadOnlySerializer(BaseSerializer):
-    """Serializer where all fields are read-only."""
-
-    def get_fields(self):
-        fields = super().get_fields()
-        for field in fields.values():
-            field.read_only = True
-            field.required = False
-        return fields
-
-
-class ReadOnlyModelSerializer(BaseModelSerializer, ReadOnlySerializer):
-    pass

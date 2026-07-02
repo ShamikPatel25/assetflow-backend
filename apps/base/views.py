@@ -55,11 +55,6 @@ class BaseViewSet(viewsets.GenericViewSet):
         kwargs["context"].update(context)
         return serializer_class(*args, **kwargs)
 
-    def get_response_serializer(self, *args, **kwargs):
-        if "serializer_class" not in kwargs:
-            kwargs["serializer_class"] = self.serializer_class
-        return self.get_serializer(*args, **kwargs)
-
     def perform_create(self, serializer):
         with transaction.atomic():
             instance = serializer.save(created_by=self.request.user)

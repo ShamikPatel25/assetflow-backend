@@ -3,13 +3,9 @@ from rest_framework import serializers
 from apps.tenants.models import Organization, Domain
 from apps.accounts.utils import send_invitation_email
 from apps.employees.models import TenantUser
-from apps.employees.models import TenantUser, Employee
+from apps.employees.models import Employee
 from apps.employees.utils import generate_employee_code
-from django.conf import settings
-from django.contrib.auth import get_user_model
-from django.core.mail import send_mail
 from django.db import connection
-from django.utils.crypto import get_random_string
 from django_tenants.utils import tenant_context
 import re
 
@@ -33,7 +29,7 @@ class OrganizationCreateSerializer(serializers.ModelSerializer):
             "id", "name", "subdomain", "org_admin_email",
             "is_active", "created_at", "updated_at",
         ]
-        read_only_fields = ["id", "created_at", "updated_at"]
+        read_only_fields = ["id", "is_active", "created_at", "updated_at"]
 
     def validate_subdomain(self, value):
         value = value.lower().strip()

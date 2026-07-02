@@ -29,7 +29,3 @@ class AFValidationError(APIException):
         self.detail = {"message": resolved}
         if self.app_code != NO_CODE:
             self.detail["code"] = self.app_code
-
-
-class AFDataIntegrityError(Exception):
-    """Raised when a data integrity expectation is violated."""

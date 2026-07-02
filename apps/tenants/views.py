@@ -8,13 +8,12 @@ from rest_framework.viewsets import ModelViewSet
 from drf_spectacular.utils import extend_schema_view, extend_schema
 
 from apps.base.permissions import IsSuperAdmin
-from apps.tenants.models import Organization, Domain
+from apps.tenants.models import Organization
 from drf_spectacular.utils import inline_serializer
 from rest_framework import serializers
 from apps.tenants.serializers import (
     OrganizationCreateSerializer, 
-    OrganizationSuperAdminUpdateSerializer, 
-    DomainSerializer
+    OrganizationSuperAdminUpdateSerializer
 )
 
 logger = logging.getLogger(__name__)

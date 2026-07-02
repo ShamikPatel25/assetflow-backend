@@ -10,7 +10,7 @@ urlpatterns = [
     path("api/v1/platform/auth/", include("apps.accounts.urls_platform")),
 
     # --- Tenant Endpoints ---
-    path("api/v1/auth/", include("apps.accounts.urls_tenant")),
+    path("api/v1/auth/", include("apps.employees.urls_auth")),
     path("api/v1/organization/", include("apps.tenants.urls_tenant")),
     path("api/v1/employees/", include("apps.employees.urls")),
     path("api/v1/departments/", include("apps.employees.urls_departments")),

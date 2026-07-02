@@ -6,15 +6,13 @@ from apps.assets.models import Asset
 
 
 class AssetRequestSerializer(BaseModelSerializer):
-    requester_name = serializers.SerializerMethodField()
-    category_name = serializers.CharField(source="category.name", read_only=True, default=None)
 
     class Meta:
         model = AssetRequest
         ref_name = "EmployeeAssetRequest"
         fields = BaseModelSerializer.base_fields(
-            "request_number", "requested_by", "requester_name",
-            "category", "category_name", "preferred_asset",
+            "request_number", "requested_by",
+            "category", "preferred_asset",
             "reason", "priority", "status",
             "approved_by", "rejected_by",
             "approved_at", "rejected_at", "rejection_reason",
@@ -26,10 +24,34 @@ class AssetRequestSerializer(BaseModelSerializer):
             "approved_at", "rejected_at", "allocation",
         ]
 
-    def get_requester_name(self, obj) -> str | None:
-        if obj.requested_by:
-            return obj.requested_by.get_full_name()
-        return None
+    def to_representation(self, instance):
+        data = super().to_representation(instance)
+        if instance.requested_by:
+            data["requested_by"] = {
+                "id": instance.requested_by_id,
+                "name": instance.requested_by.get_full_name()
+            }
+        if instance.category:
+            data["category"] = {
+                "id": instance.category_id,
+                "name": instance.category.name
+            }
+        if instance.preferred_asset:
+            data["preferred_asset"] = {
+                "id": instance.preferred_asset_id,
+                "name": instance.preferred_asset.name
+            }
+        if instance.approved_by:
+            data["approved_by"] = {
+                "id": instance.approved_by_id,
+                "name": instance.approved_by.get_full_name()
+            }
+        if instance.rejected_by:
+            data["rejected_by"] = {
+                "id": instance.rejected_by_id,
+                "name": instance.rejected_by.get_full_name()
+            }
+        return data
 
 
 class AssetRequestCreateSerializer(serializers.Serializer):

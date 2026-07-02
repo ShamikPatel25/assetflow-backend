@@ -57,8 +57,8 @@ class AssetAllocationViewSet(ReadOnlyViewSet):
         serializer = AllocateSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
 
-        asset = Asset.objects.get(pk=serializer.validated_data["asset"])
-        employee = Employee.objects.get(pk=serializer.validated_data["employee"])
+        asset = serializer.validated_data["asset"]
+        employee = serializer.validated_data["employee"]
 
         # Find the assigner (employee profile of the logged-in user)
         assigned_by = getattr(request.user, "employee_profile", None)

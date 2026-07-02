@@ -34,12 +34,11 @@ class TenantUserSerializer(serializers.ModelSerializer):
 
 
 class EmployeeProfileSerializer(serializers.ModelSerializer):
-    role = serializers.CharField(source='user.role', read_only=True)
 
     class Meta:
         model = Employee
         fields = [
-            "id", "first_name", "last_name", "phone", "role",
+            "id", "first_name", "last_name", "phone",
             "employee_code", "designation", "department", "manager",
             "joining_date", "exit_date",
         ]

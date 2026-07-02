@@ -23,28 +23,6 @@ class IsOrganizationAdmin(BasePermission):
         )
 
 
-class IsHRManager(BasePermission):
-    """Only tenant users with HR_MANAGER role."""
-
-    def has_permission(self, request, view):
-        return bool(
-            request.user
-            and request.user.is_authenticated
-            and getattr(request.user, "role", None) == "HR_MANAGER"
-        )
-
-
-class IsEmployee(BasePermission):
-    """Only tenant users with EMPLOYEE role."""
-
-    def has_permission(self, request, view):
-        return bool(
-            request.user
-            and request.user.is_authenticated
-            and getattr(request.user, "role", None) == "EMPLOYEE"
-        )
-
-
 class IsOrgAdminOrHR(BasePermission):
     """Organization Admin or HR Manager."""
 
