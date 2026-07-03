@@ -21,6 +21,14 @@ class TenantRoutingMiddleware(TenantMainMiddleware):
 
         # After django-tenants resolves the tenant, check if it's active
         tenant = connection.tenant
+        
+        if tenant:
+            try:
+                import sentry_sdk
+                sentry_sdk.set_tag("tenant", tenant.schema_name)
+            except ImportError:
+                pass
+
         if tenant and hasattr(tenant, "is_active") and not tenant.is_active:
             return JsonResponse(
                 {"message": "This organization has been deactivated."},

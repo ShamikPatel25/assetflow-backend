@@ -20,8 +20,14 @@ class TokenResponseSerializer(drf_serializers.Serializer):
     user = TenantUserSerializer()
     profile = EmployeeProfileSerializer()
 
+    class Meta:
+        ref_name = "EmployeesTokenResponse"
+
 class MessageSerializer(drf_serializers.Serializer):
     message = drf_serializers.CharField()
+
+    class Meta:
+        ref_name = "EmployeesMessage"
 
 
 @extend_schema(tags=["Tenant Auth"])

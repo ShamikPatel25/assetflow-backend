@@ -2,6 +2,7 @@ from rest_framework import views
 from rest_framework.response import Response
 from drf_spectacular.utils import extend_schema
 from rest_framework.permissions import IsAuthenticated
+from rest_framework.throttling import ScopedRateThrottle
 
 from apps.ai.serializers import RiskAssessmentRequestSerializer, RiskAssessmentResponseSerializer
 from apps.ai.services import RiskAssessmentService
@@ -17,6 +18,8 @@ class AIRiskAssessmentView(views.APIView):
     
     # Either HR Manager or Org Admin can use the AI decision support
     permission_classes = [IsAuthenticated]
+    throttle_classes = [ScopedRateThrottle]
+    throttle_scope = 'ai_requests'
     
     @extend_schema(
         request=RiskAssessmentRequestSerializer,

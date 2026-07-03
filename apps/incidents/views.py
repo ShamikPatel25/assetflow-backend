@@ -7,7 +7,7 @@ from rest_framework.response import Response
 from drf_spectacular.utils import extend_schema_view, extend_schema
 
 from apps.base.errors import AFValidationError, error_codes
-from apps.base.permissions import IsOrgAdminOrReadOnly, IsOrgAdminOrHR, IsOrgAdminOrHROrReadOnly
+from apps.base.permissions import IsOrgAdminOrHR, IsOrgAdminOrHROrReadOnly
 from apps.base.views import CRUDViewSet
 from apps.incidents.models import Incident, RepairRecord
 from apps.incidents.serializers import IncidentSerializer, RepairRecordSerializer

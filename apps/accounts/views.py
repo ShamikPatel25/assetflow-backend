@@ -15,6 +15,9 @@ class TokenResponseSerializer(drf_serializers.Serializer):
     refresh = drf_serializers.CharField()
     user = UserSerializer()
 
+    class Meta:
+        ref_name = "AccountsTokenResponse"
+
 
 class TokenPairSerializer(drf_serializers.Serializer):
     access = drf_serializers.CharField()
@@ -27,6 +30,9 @@ class RefreshRequestSerializer(drf_serializers.Serializer):
 
 class MessageSerializer(drf_serializers.Serializer):
     message = drf_serializers.CharField()
+
+    class Meta:
+        ref_name = "AccountsMessage"
 
 
 # ── Views ────────────────────────────────────────────────────────────────

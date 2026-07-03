@@ -1,5 +1,5 @@
 """
-Exhaustive Test Suite for Notifications module.
+Tests for Notifications module.
 
 Covers:
 - Users only see their own notifications
@@ -17,19 +17,19 @@ pytestmark = pytest.mark.django_db
 
 
 class TestNotificationVisibility:
-    """Black-box: Users should only see notifications addressed to them."""
+    """Users should only see notifications addressed to them."""
 
     url = "/api/v1/notifications/"
 
     def test_unauthenticated_cannot_view_notifications(self, api_client, tenant):
-        """TC-NOTIF-01: No JWT → blocked."""
+        """No JWT → blocked."""
         response = api_client.get(self.url)
         assert response.status_code in [status.HTTP_401_UNAUTHORIZED, status.HTTP_403_FORBIDDEN]
 
     def test_user_sees_only_own_notifications(
         self, employee_api_client, employee_user, hr_user, tenant
     ):
-        """TC-NOTIF-02: Employee only sees notifications where recipient=self."""
+        """Employee only sees notifications where recipient=self."""
 
         # Create one notification for the employee and one for HR
         Notification.objects.create(
@@ -50,14 +50,14 @@ class TestNotificationVisibility:
 
 
 class TestNotificationMarkRead:
-    """White-box: Mark-read endpoints."""
+    """Mark-read endpoints."""
 
     url = "/api/v1/notifications/"
 
     def test_mark_single_notification_as_read(
         self, employee_api_client, employee_user, tenant
     ):
-        """TC-NOTIF-03: POST /notifications/{id}/read/ → marks is_read=True."""
+        """POST /notifications/{id}/read/ → marks is_read=True."""
 
         notif = Notification.objects.create(
             recipient=employee_user, title="Unread",
@@ -71,7 +71,7 @@ class TestNotificationMarkRead:
     def test_mark_all_notifications_as_read(
         self, employee_api_client, employee_user, tenant
     ):
-        """TC-NOTIF-04: POST /notifications/mark-read/ → batch mark all."""
+        """POST /notifications/mark-read/ → batch mark all."""
 
         for i in range(3):
             Notification.objects.create(
@@ -87,7 +87,7 @@ class TestNotificationMarkRead:
     def test_mark_read_only_affects_own_notifications(
         self, employee_api_client, employee_user, hr_user, tenant
     ):
-        """TC-NOTIF-05: mark-read should not affect another user's notifications."""
+        """mark-read should not affect another user's notifications."""
 
         Notification.objects.create(
             recipient=employee_user, title="Mine",
@@ -104,12 +104,12 @@ class TestNotificationMarkRead:
 
 
 class TestNotificationServiceIntegration:
-    """White-box: Verify NotificationService creates notifications correctly."""
+    """Verify NotificationService creates notifications correctly."""
 
     def test_allocation_creates_notification(
         self, asset, employee, tenant
     ):
-        """TC-NOTIF-06: AllocationService.allocate() creates a notification."""
+        """AllocationService.allocate() creates a notification."""
 
         AllocationService.allocate(asset=asset, employee=employee)
         notifs = Notification.objects.filter(

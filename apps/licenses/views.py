@@ -4,10 +4,8 @@ from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from drf_spectacular.utils import extend_schema_view, extend_schema
 
-from apps.assets.models import Asset
-from apps.base.permissions import IsOrganizationAdmin, IsOrgAdminOrReadOnly, IsOrgAdminOrHR, IsOrgAdminOrHROrReadOnly
+from apps.base.permissions import IsOrgAdminOrHR, IsOrgAdminOrHROrReadOnly
 from apps.base.views import CRUDViewSet, ReadOnlyViewSet
-from apps.employees.models import Employee
 from apps.licenses.models import SoftwareLicense, LicenseAssignment
 from apps.licenses.serializers import (
     SoftwareLicenseSerializer,

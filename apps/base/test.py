@@ -33,15 +33,13 @@ def _assert_unified_error(body):
     assert "non_field_errors" not in body, f"raw 'non_field_errors' leaked: {body}"
 
 
-# ═══════════════════════════════════════════════════════════════════════════════
 # 1. UNIFIED ERROR SHAPE ACROSS MODULES
-# ═══════════════════════════════════════════════════════════════════════════════
 
 class TestErrorContract:
-    """Black-box: the normalized error body is identical across error types."""
+    """the normalized error body is identical across error types."""
 
     def test_unauthenticated_error_is_unified(self, api_client, tenant):
-        """TC-ERR-01: No JWT → 401/403 with {"message","code"}, code=PERMISSION_DENIED."""
+        """No JWT → 401/403 with {"message","code"}, code=PERMISSION_DENIED."""
         response = api_client.get("/api/v1/assets/")
         assert response.status_code in (
             status.HTTP_401_UNAUTHORIZED, status.HTTP_403_FORBIDDEN
@@ -51,7 +49,7 @@ class TestErrorContract:
 
     def test_invalid_login_returns_clean_message(self, api_client, tenant,
                                                  tenant_user_factory):
-        """TC-ERR-02: Bad credentials → 400 with a clear, flat message (no list)."""
+        """Bad credentials → 400 with a clear, flat message (no list)."""
         tenant_user_factory(email="real@test.local", password="correct-pass")
         response = api_client.post("/api/v1/auth/login/", data={
             "email": "real@test.local",
@@ -63,7 +61,7 @@ class TestErrorContract:
         assert response.data["code"] == codes.DATA_VALIDATION_FAILED
 
     def test_not_found_is_unified(self, admin_api_client):
-        """TC-ERR-03: Fetching a non-existent asset → 404 with a readable message."""
+        """Fetching a non-existent asset → 404 with a readable message."""
         response = admin_api_client.get(f"/api/v1/assets/{uuid.uuid4()}/")
         assert response.status_code == status.HTTP_404_NOT_FOUND
         _assert_unified_error(response.data)
@@ -71,13 +69,13 @@ class TestErrorContract:
         assert response.data["code"] == codes.RECORD_NOT_FOUND
 
     def test_malformed_uuid_is_unified_not_500(self, admin_api_client):
-        """TC-ERR-04: A garbage id must yield a clean 404, never a 500 crash."""
+        """A garbage id must yield a clean 404, never a 500 crash."""
         response = admin_api_client.get("/api/v1/assets/not-a-real-uuid/")
         assert response.status_code == status.HTTP_404_NOT_FOUND
         _assert_unified_error(response.data)
 
     def test_permission_denied_on_write_is_unified(self, employee_api_client):
-        """TC-ERR-05: Employee writing to an admin-only endpoint → 403 unified body."""
+        """Employee writing to an admin-only endpoint → 403 unified body."""
         response = employee_api_client.post("/api/v1/asset-categories/", data={
             "name": "Hacked Category",
             "code": "HACK",
@@ -88,7 +86,7 @@ class TestErrorContract:
         assert response.data["code"] == codes.PERMISSION_DENIED
 
     def test_validation_error_is_flattened_to_sentence(self, admin_api_client):
-        """TC-ERR-06: Missing required fields → 400 with a flat string message,
+        """Missing required fields → 400 with a flat string message,
         never a {field: [..]} dict."""
         response = admin_api_client.post("/api/v1/asset-categories/", data={})
         assert response.status_code == status.HTTP_400_BAD_REQUEST
@@ -98,9 +96,7 @@ class TestErrorContract:
         )
 
 
-# ═══════════════════════════════════════════════════════════════════════════════
 # 2. CONSISTENCY: SAME ERROR TYPE → SAME SHAPE ACROSS DIFFERENT MODULES
-# ═══════════════════════════════════════════════════════════════════════════════
 
 class TestCrossModuleConsistency:
     """The same failure mode must look identical no matter which module serves it."""
@@ -115,7 +111,7 @@ class TestCrossModuleConsistency:
     ]
 
     def test_not_found_shape_is_identical_everywhere(self, admin_api_client):
-        """TC-XM-01: 404 from every module has the same keys + code."""
+        """404 from every module has the same keys + code."""
         for template in self.NOT_FOUND_ENDPOINTS:
             url = template.format(id=uuid.uuid4())
             response = admin_api_client.get(url)
@@ -124,7 +120,7 @@ class TestCrossModuleConsistency:
             assert response.data["code"] == codes.RECORD_NOT_FOUND, url
 
     def test_unauthenticated_shape_is_identical_everywhere(self, api_client, tenant):
-        """TC-XM-02: 401/403 from every module has the same keys + code."""
+        """401/403 from every module has the same keys + code."""
         for template in self.NOT_FOUND_ENDPOINTS:
             url = template.format(id=uuid.uuid4())
             response = api_client.get(url)
@@ -135,16 +131,14 @@ class TestCrossModuleConsistency:
             assert response.data["code"] == codes.PERMISSION_DENIED, url
 
 
-# ═══════════════════════════════════════════════════════════════════════════════
 # 3. REAL BUSINESS LIFECYCLE (service layer, valid data + invalid data)
-# ═══════════════════════════════════════════════════════════════════════════════
 
 class TestAssetAllocationLifecycle:
-    """White-box integration: the real allocate → return → re-use lifecycle,
+    """Integration: the real allocate → return → re-use lifecycle,
     proving valid data flows through and invalid data raises the RIGHT base code."""
 
     def test_full_allocate_and_return_cycle(self, asset, employee, hr_employee):
-        """TC-LIFE-01: Allocate an available asset, then return it — asset ends
+        """Allocate an available asset, then return it — asset ends
         up AVAILABLE and reusable, allocation state tracked at each step."""
         from apps.allocations.services import AllocationService
         from apps.assets.models import Asset
@@ -170,7 +164,7 @@ class TestAssetAllocationLifecycle:
         assert allocation.status == AssetAllocation.Status.RETURNED
 
     def test_cannot_allocate_already_allocated_asset(self, asset, employee, hr_employee):
-        """TC-LIFE-02: Double-allocation → INVALID_STATUS_TRANSITION code."""
+        """Double-allocation → INVALID_STATUS_TRANSITION code."""
         from apps.allocations.services import AllocationService
         from apps.base.errors import AFValidationError
 
@@ -180,7 +174,7 @@ class TestAssetAllocationLifecycle:
         assert exc.value.detail["code"] == codes.INVALID_STATUS_TRANSITION
 
     def test_cannot_allocate_to_inactive_employee(self, asset, employee):
-        """TC-LIFE-03: Allocating to an exited employee → DATA_VALIDATION_FAILED."""
+        """Allocating to an exited employee → DATA_VALIDATION_FAILED."""
         from apps.allocations.services import AllocationService
         from apps.base.errors import AFValidationError
 
@@ -191,7 +185,7 @@ class TestAssetAllocationLifecycle:
         assert exc.value.detail["code"] == codes.DATA_VALIDATION_FAILED
 
     def test_cannot_return_already_returned_allocation(self, asset, employee):
-        """TC-LIFE-04: Returning twice → INVALID_STATUS_TRANSITION."""
+        """Returning twice → INVALID_STATUS_TRANSITION."""
         from apps.allocations.services import AllocationService
         from apps.base.errors import AFValidationError
 
@@ -203,10 +197,10 @@ class TestAssetAllocationLifecycle:
 
 
 class TestLicenseSeatLifecycle:
-    """White-box integration: license seat assignment respects capacity."""
+    """Integration: license seat assignment respects capacity."""
 
     def test_assign_and_revoke_seat(self, license_factory, employee):
-        """TC-LIFE-05: Assign a seat then revoke it (valid happy path)."""
+        """Assign a seat then revoke it (valid happy path)."""
         from apps.licenses.services import LicenseService
         from apps.licenses.models import LicenseAssignment
 
@@ -219,7 +213,7 @@ class TestLicenseSeatLifecycle:
         assert assignment.status == LicenseAssignment.Status.REVOKED
 
     def test_cannot_exceed_seat_capacity(self, license_factory, employee_factory):
-        """TC-LIFE-06: Assigning past total_seats → DATA_VALIDATION_FAILED."""
+        """Assigning past total_seats → DATA_VALIDATION_FAILED."""
         from apps.licenses.services import LicenseService
         from apps.base.errors import AFValidationError
 
@@ -230,9 +224,7 @@ class TestLicenseSeatLifecycle:
         assert exc.value.detail["code"] == codes.DATA_VALIDATION_FAILED
 
 
-# ═══════════════════════════════════════════════════════════════════════════════
 # 4. REGRESSIONS (bugs found during the real-data walkthrough)
-# ═══════════════════════════════════════════════════════════════════════════════
 
 class TestNotificationRegressions:
     """Incidents may have a null asset — notifications must not crash on it."""
@@ -240,7 +232,7 @@ class TestNotificationRegressions:
     def test_incident_reported_without_asset_does_not_crash(
         self, incident_factory, hr_user
     ):
-        """TC-REG-01: Reporting an incident with no linked asset must notify
+        """Reporting an incident with no linked asset must notify
         HR without raising AttributeError (was a 500 in production)."""
         from apps.notifications.services import NotificationService
         from apps.notifications.models import Notification
@@ -252,7 +244,7 @@ class TestNotificationRegressions:
         assert note.payload["asset_id"] is None
 
     def test_incident_updated_without_asset_does_not_crash(self, incident_factory):
-        """TC-REG-02: Resolving/closing an assetless incident must not crash."""
+        """Resolving/closing an assetless incident must not crash."""
         from apps.notifications.services import NotificationService
         from apps.notifications.models import Notification
 

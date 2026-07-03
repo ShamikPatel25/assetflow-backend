@@ -14,8 +14,15 @@ drf-spectacular==0.29.0
 django-filter==25.1
 django-cors-headers==4.9.0
 
+# Caching & Rate Limiting
+redis==5.0.3
+django-redis==5.4.0
+
 # Config
 python-dotenv==1.2.2
+
+# Logging & Monitoring
+sentry-sdk==2.19.0
 
 # --- Dev / test (optional) ---
 # pytest==9.1.1

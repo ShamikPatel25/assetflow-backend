@@ -1,5 +1,5 @@
 """
-Exhaustive Test Suite for Asset Allocation module.
+Tests for Asset Allocation module.
 
 Covers the entire asset lifecycle:
 - Allocation rules (only AVAILABLE assets, only active employees)
@@ -17,16 +17,14 @@ from rest_framework import status
 pytestmark = pytest.mark.django_db
 
 
-# ═══════════════════════════════════════════════════════════════════════════════
-# 1. ALLOCATION SERVICE LOGIC (Unit Tests / White-box)
-# ═══════════════════════════════════════════════════════════════════════════════
+# 1. ALLOCATION SERVICE LOGIC (unit tests)
 
 class TestAllocationServiceLogic:
-    """White-box: AllocationService.allocate() and .return_asset() rules."""
+    """AllocationService.allocate() and .return_asset() rules."""
 
     def test_allocate_available_asset_succeeds(self, asset, employee,
                                                mock_notification_service):
-        """TC-ALLOC-01: Allocating an AVAILABLE asset creates an ACTIVE allocation."""
+        """Allocating an AVAILABLE asset creates an ACTIVE allocation."""
 
         allocation = AllocationService.allocate(asset=asset, employee=employee)
         assert allocation.status == "ACTIVE"
@@ -39,7 +37,7 @@ class TestAllocationServiceLogic:
     def test_allocate_already_allocated_asset_fails(self, asset, employee,
                                                     employee_factory,
                                                     mock_notification_service):
-        """TC-ALLOC-02: Cannot allocate an asset that is already ALLOCATED."""
+        """Cannot allocate an asset that is already ALLOCATED."""
 
         AllocationService.allocate(asset=asset, employee=employee)
         second_employee = employee_factory(first_name="Jane")
@@ -48,7 +46,7 @@ class TestAllocationServiceLogic:
 
     def test_allocate_maintenance_asset_fails(self, asset_factory, employee, category,
                                               mock_notification_service):
-        """TC-ALLOC-03: Cannot allocate an asset in IN_MAINTENANCE status."""
+        """Cannot allocate an asset in IN_MAINTENANCE status."""
 
         broken_asset = asset_factory(name="Broken", category=category,
                                       status="IN_MAINTENANCE")
@@ -57,7 +55,7 @@ class TestAllocationServiceLogic:
 
     def test_allocate_retired_asset_fails(self, asset_factory, employee, category,
                                           mock_notification_service):
-        """TC-ALLOC-04: Cannot allocate a RETIRED asset."""
+        """Cannot allocate a RETIRED asset."""
 
         retired = asset_factory(name="Old", category=category, status="RETIRED")
         with pytest.raises(AFValidationError):
@@ -65,7 +63,7 @@ class TestAllocationServiceLogic:
 
     def test_allocate_to_inactive_employee_fails(self, asset, employee_factory,
                                                   department, mock_notification_service):
-        """TC-ALLOC-05: Cannot allocate to an employee with is_active=False."""
+        """Cannot allocate to an employee with is_active=False."""
 
         inactive_emp = employee_factory(first_name="Exited", is_active=False,
                                         department=department)
@@ -77,16 +75,14 @@ class TestAllocationServiceLogic:
             AllocationService.allocate(asset=asset, employee=inactive_emp)
 
 
-# ═══════════════════════════════════════════════════════════════════════════════
-# 2. RETURN FLOW (White-box)
-# ═══════════════════════════════════════════════════════════════════════════════
+# 2. RETURN FLOW
 
 class TestReturnFlow:
-    """White-box: Asset return via AllocationService.return_asset()."""
+    """Asset return via AllocationService.return_asset()."""
 
     def test_return_active_allocation_succeeds(self, asset, employee,
                                                mock_notification_service):
-        """TC-RET-01: Returning an ACTIVE allocation sets status correctly."""
+        """Returning an ACTIVE allocation sets status correctly."""
 
         allocation = AllocationService.allocate(asset=asset, employee=employee)
         returned = AllocationService.return_asset(allocation, return_condition="GOOD")
@@ -102,7 +98,7 @@ class TestReturnFlow:
 
     def test_return_already_returned_allocation_fails(self, asset, employee,
                                                       mock_notification_service):
-        """TC-RET-02: Cannot return an allocation that is already RETURNED."""
+        """Cannot return an allocation that is already RETURNED."""
 
         allocation = AllocationService.allocate(asset=asset, employee=employee)
         AllocationService.return_asset(allocation)
@@ -113,7 +109,7 @@ class TestReturnFlow:
     def test_asset_available_for_reallocation_after_return(self, asset, employee,
                                                            employee_factory,
                                                            mock_notification_service):
-        """TC-RET-03: After return, the same asset can be allocated to someone else."""
+        """After return, the same asset can be allocated to someone else."""
 
         alloc1 = AllocationService.allocate(asset=asset, employee=employee)
         AllocationService.return_asset(alloc1)
@@ -124,27 +120,25 @@ class TestReturnFlow:
         assert alloc2.employee == new_emp
 
 
-# ═══════════════════════════════════════════════════════════════════════════════
-# 3. API PERMISSIONS (Black-box)
-# ═══════════════════════════════════════════════════════════════════════════════
+# 3. API PERMISSIONS
 
 class TestAllocationAPIPermissions:
-    """Black-box: Verify allocation API endpoint access by role."""
+    """Verify allocation API endpoint access by role."""
 
     url = "/api/v1/allocations/"
 
     def test_unauthenticated_cannot_list_allocations(self, api_client, tenant):
-        """TC-AAPI-01: No JWT → blocked."""
+        """No JWT → blocked."""
         response = api_client.get(self.url)
         assert response.status_code in [status.HTTP_401_UNAUTHORIZED, status.HTTP_403_FORBIDDEN]
 
     def test_employee_can_see_allocations(self, employee_api_client):
-        """TC-AAPI-02: EMPLOYEE can read allocations."""
+        """EMPLOYEE can read allocations."""
         response = employee_api_client.get(self.url)
         assert response.status_code == status.HTTP_200_OK
 
     def test_employee_cannot_create_allocation(self, employee_api_client, asset, employee):
-        """TC-AAPI-03: EMPLOYEE cannot directly allocate assets."""
+        """EMPLOYEE cannot directly allocate assets."""
         response = employee_api_client.post(self.url, data={
             "asset": str(asset.id), "employee": str(employee.id),
         })
