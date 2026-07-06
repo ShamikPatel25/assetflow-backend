@@ -14,10 +14,3 @@ error_messages = ErrorMessageDict({
     codes.PERMISSION_DENIED: "You do not have permission to perform this action.",
     codes.INVALID_STATUS_TRANSITION: "Invalid status transition.",
 })
-
-
-def message(error_code):
-    return {
-        "message": error_messages.get(error_code),
-        "code": error_code,
-    }

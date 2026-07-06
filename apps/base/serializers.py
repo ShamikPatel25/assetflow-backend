@@ -112,11 +112,19 @@ class BaseModelSerializer(serializers.ModelSerializer, BaseSerializer):
     updated_by = serializers.PrimaryKeyRelatedField(read_only=True)
 
     def is_valid(self, *, raise_exception=False):
-        super().is_valid()
+        super().is_valid(raise_exception=False)
         is_violated = False
-        if not self._errors:
+
+        if self._errors:
+            for err_list in self._errors.values():
+                if any("unique" in str(e).lower() for e in err_list):
+                    is_violated = True
+                    break
+        else:
             is_violated = self._check_unique_together()
         if self._errors:
+            if not raise_exception:
+                return False
             app_code = errors.RECORD_ALREADY_EXIST if is_violated else errors.DATA_VALIDATION_FAILED
             err_dict = dict(self.errors)
             field = list(err_dict.keys())[0]
@@ -127,7 +135,7 @@ class BaseModelSerializer(serializers.ModelSerializer, BaseSerializer):
                 f"{field.split('__')[0]} - {error_msg}",
                 app_code=app_code,
             )
-        return not bool(self._errors)
+        return True
 
     def _check_unique_together(self):
         unique_sets = getattr(self.Meta.model._meta, "unique_together", ())

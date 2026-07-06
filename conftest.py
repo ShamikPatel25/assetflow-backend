@@ -432,10 +432,3 @@ def mock_audit_log():
     """Patch log_action to prevent side-effects in unit tests."""
     with patch("apps.audit.services.log_action") as mock:
         yield mock
-
-
-@pytest.fixture()
-def mock_send_invitation_email():
-    """Patch send_invitation_email to prevent side-effects in unit tests."""
-    with patch("apps.accounts.utils.send_invitation_email") as mock:
-        yield mock

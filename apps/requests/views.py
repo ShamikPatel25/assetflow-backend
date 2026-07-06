@@ -14,6 +14,8 @@ from apps.requests.serializers import (
     AssetRequestCreateSerializer,
     RejectSerializer,
     ApproveSerializer,
+    BulkApproveSerializer,
+    BulkRejectSerializer,
 )
 from apps.requests.services import AssetRequestService
 
@@ -202,3 +204,51 @@ class AssetRequestViewSet(CRUDViewSet):
             
         request_obj = AssetRequestService.cancel(request_obj, updated_by=user)
         return Response(AssetRequestSerializer(request_obj).data)
+
+    @extend_schema(
+        summary="Bulk Approve Asset Requests",
+        tags=["Asset Requests"],
+        request=BulkApproveSerializer,
+        responses={200: {}}
+    )
+    @action(detail=False, methods=["post"], url_path="bulk-approve",
+            permission_classes=[IsAuthenticated, IsOrgAdminOrHR])
+    def bulk_approve(self, request):
+        serializer = BulkApproveSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        
+        request_ids = serializer.validated_data.get("request_ids")
+        notes = serializer.validated_data.get("notes")
+        approver = getattr(request.user, "employee_profile", None)
+        
+        result = AssetRequestService.bulk_approve(
+            request_ids=request_ids,
+            approved_by=approver,
+            notes=notes,
+            updated_by=request.user
+        )
+        return Response(result, status=status.HTTP_200_OK)
+
+    @extend_schema(
+        summary="Bulk Reject Asset Requests",
+        tags=["Asset Requests"],
+        request=BulkRejectSerializer,
+        responses={200: {}}
+    )
+    @action(detail=False, methods=["post"], url_path="bulk-reject",
+            permission_classes=[IsAuthenticated, IsOrgAdminOrHR])
+    def bulk_reject(self, request):
+        serializer = BulkRejectSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        
+        request_ids = serializer.validated_data.get("request_ids")
+        rejection_reason = serializer.validated_data.get("rejection_reason")
+        rejector = getattr(request.user, "employee_profile", None)
+        
+        result = AssetRequestService.bulk_reject(
+            request_ids=request_ids,
+            rejected_by=rejector,
+            rejection_reason=rejection_reason,
+            updated_by=request.user
+        )
+        return Response(result, status=status.HTTP_200_OK)

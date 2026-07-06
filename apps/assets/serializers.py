@@ -17,7 +17,7 @@ class AssetCategorySerializer(BaseModelSerializer):
         data = super().to_representation(instance)
         if instance.parent:
             data["parent"] = {
-                "id": instance.parent_id,
+                "id": str(instance.parent_id),
                 "name": instance.parent.name
             }
         return data
@@ -64,16 +64,42 @@ class AssetSerializer(BaseModelSerializer):
         data = super().to_representation(instance)
         if instance.category:
             data["category"] = {
-                "id": instance.category_id,
+                "id": str(instance.category_id),
                 "name": instance.category.name
             }
         if instance.current_owner:
             data["current_owner"] = {
-                "id": instance.current_owner_id,
+                "id": str(instance.current_owner_id),
                 "name": instance.current_owner.get_full_name()
             }
         if instance.current_allocation:
             data["current_allocation"] = {
-                "id": instance.current_allocation_id
+                "id": str(instance.current_allocation_id)
             }
+            
+        # Format empty metadata as null
+        if not data.get("metadata"):
+            data["metadata"] = None
+            
         return data
+
+    def validate(self, attrs):
+        purchase_date = attrs.get("purchase_date", self.instance.purchase_date if self.instance else None)
+        warranty_date = attrs.get("warranty_expiry_date", self.instance.warranty_expiry_date if self.instance else None)
+
+        if purchase_date and warranty_date and warranty_date < purchase_date:
+            raise serializers.ValidationError({
+                "warranty_expiry_date": "Warranty expiry date cannot be earlier than the purchase date."
+            })
+            
+        serial_number = attrs.get("serial_number", self.instance.serial_number if self.instance else None)
+        if serial_number:
+            qs = Asset.objects.filter(serial_number=serial_number)
+            if self.instance:
+                qs = qs.exclude(pk=self.instance.pk)
+            if qs.exists():
+                raise serializers.ValidationError({
+                    "serial_number": f"An asset with serial number '{serial_number}' already exists."
+                })
+            
+        return super().validate(attrs)

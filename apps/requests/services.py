@@ -84,7 +84,7 @@ class AssetRequestService:
             ])
 
         NotificationService.notify_request_approved(request_obj)
-
+    
         return request_obj
 
     @staticmethod
@@ -130,3 +130,79 @@ class AssetRequestService:
         request_obj.updated_by = updated_by
         request_obj.save(update_fields=["status", "updated_at", "updated_by"])
         return request_obj
+
+    @staticmethod
+    def bulk_approve(request_ids, approved_by, notes="", updated_by=None):
+        success_count = 0
+        failed_count = 0
+        errors = []
+
+        requests = AssetRequest.objects.filter(id__in=request_ids)
+        request_map = {str(req.id): req for req in requests}
+
+        for req_id in request_ids:
+            req_str = str(req_id)
+            if req_str not in request_map:
+                failed_count += 1
+                errors.append(f"Request {req_str}: Not found.")
+                continue
+
+            req_obj = request_map[req_str]
+            try:
+                AssetRequestService.approve(
+                    req_obj,
+                    approved_by=approved_by,
+                    notes=notes,
+                    updated_by=updated_by
+                )
+                success_count += 1
+            except AFValidationError as e:
+                failed_count += 1
+                errors.append(f"Request {req_obj.request_number}: {str(e)}")
+            except Exception as e:
+                failed_count += 1
+                errors.append(f"Request {req_obj.request_number}: Internal error - {str(e)}")
+
+        return {
+            "success": success_count,
+            "failed": failed_count,
+            "errors": errors
+        }
+
+    @staticmethod
+    def bulk_reject(request_ids, rejected_by, rejection_reason="", updated_by=None):
+        success_count = 0
+        failed_count = 0
+        errors = []
+
+        requests = AssetRequest.objects.filter(id__in=request_ids)
+        request_map = {str(req.id): req for req in requests}
+
+        for req_id in request_ids:
+            req_str = str(req_id)
+            if req_str not in request_map:
+                failed_count += 1
+                errors.append(f"Request {req_str}: Not found.")
+                continue
+
+            req_obj = request_map[req_str]
+            try:
+                AssetRequestService.reject(
+                    req_obj,
+                    rejected_by=rejected_by,
+                    rejection_reason=rejection_reason,
+                    updated_by=updated_by
+                )
+                success_count += 1
+            except AFValidationError as e:
+                failed_count += 1
+                errors.append(f"Request {req_obj.request_number}: {str(e)}")
+            except Exception as e:
+                failed_count += 1
+                errors.append(f"Request {req_obj.request_number}: Internal error - {str(e)}")
+
+        return {
+            "success": success_count,
+            "failed": failed_count,
+            "errors": errors
+        }

@@ -28,29 +28,33 @@ class AssetRequestSerializer(BaseModelSerializer):
         data = super().to_representation(instance)
         if instance.requested_by:
             data["requested_by"] = {
-                "id": instance.requested_by_id,
+                "id": str(instance.requested_by_id),
                 "name": instance.requested_by.get_full_name()
             }
         if instance.category:
             data["category"] = {
-                "id": instance.category_id,
+                "id": str(instance.category_id),
                 "name": instance.category.name
             }
         if instance.preferred_asset:
             data["preferred_asset"] = {
-                "id": instance.preferred_asset_id,
+                "id": str(instance.preferred_asset_id),
                 "name": instance.preferred_asset.name
             }
-        if instance.approved_by:
+        if getattr(instance, "approved_by", None):
             data["approved_by"] = {
-                "id": instance.approved_by_id,
+                "id": str(instance.approved_by_id),
                 "name": instance.approved_by.get_full_name()
             }
-        if instance.rejected_by:
+        else:
+            data["approved_by"] = None
+        if getattr(instance, "rejected_by", None):
             data["rejected_by"] = {
-                "id": instance.rejected_by_id,
+                "id": str(instance.rejected_by_id),
                 "name": instance.rejected_by.get_full_name()
             }
+        else:
+            data["rejected_by"] = None
         return data
 
 
@@ -96,3 +100,17 @@ class RejectSerializer(serializers.Serializer):
 class ApproveSerializer(serializers.Serializer):
     asset = serializers.UUIDField(required=False, allow_null=True)
     notes = serializers.CharField(required=False, allow_blank=True, default="")
+
+class BulkApproveSerializer(serializers.Serializer):
+    request_ids = serializers.ListField(
+        child=serializers.UUIDField(),
+        allow_empty=False
+    )
+    notes = serializers.CharField(required=False, allow_blank=True, default="")
+
+class BulkRejectSerializer(serializers.Serializer):
+    request_ids = serializers.ListField(
+        child=serializers.UUIDField(),
+        allow_empty=False
+    )
+    rejection_reason = serializers.CharField(required=False, allow_blank=True, default="")

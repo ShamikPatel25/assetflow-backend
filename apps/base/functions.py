@@ -2,8 +2,8 @@ def get_user_display(user):
     """Return a human-readable label for a user instance."""
     if not user:
         return None
-    name = user.get_full_name()
-    return name if name else user.email
+    name = getattr(user, "get_full_name", lambda: None)()
+    return name if name else getattr(user, "email", str(user))
 
 
 def extract_nested_fields(field_list):
