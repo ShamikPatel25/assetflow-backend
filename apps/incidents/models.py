@@ -63,11 +63,7 @@ class Incident(AbstractBaseModel):
         choices=Status.choices,
         default=Status.OPEN,
     )
-    # AI-assisted fields
-    ai_category = models.CharField(max_length=50, null=True, blank=True)
-    ai_summary = models.TextField(null=True, blank=True)
-    ai_confidence = models.FloatField(null=True, blank=True)
-    ai_model_version = models.CharField(max_length=50, null=True, blank=True)
+
 
     opened_at = models.DateTimeField(auto_now_add=True)
     resolved_at = models.DateTimeField(null=True, blank=True)

@@ -81,13 +81,6 @@ class LicenseAssignment(AbstractBaseModel):
         on_delete=models.PROTECT,
         related_name="license_assignments",
     )
-    asset = models.ForeignKey(
-        "assets.Asset",
-        null=True,
-        blank=True,
-        on_delete=models.SET_NULL,
-        related_name="license_assignments",
-    )
     assigned_by = models.ForeignKey(
         "employees.Employee",
         null=True,

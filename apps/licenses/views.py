@@ -3,6 +3,8 @@ from rest_framework.decorators import action
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from drf_spectacular.utils import extend_schema_view, extend_schema
+from django.db import transaction
+from django.utils import timezone
 
 from apps.base.permissions import IsOrgAdminOrHR, IsOrgAdminOrHROrReadOnly
 from apps.base.views import CRUDViewSet, ReadOnlyViewSet
@@ -12,6 +14,7 @@ from apps.licenses.serializers import (
     LicenseAssignmentSerializer,
     AssignLicenseSerializer,
     RevokeLicenseSerializer,
+    BulkAssignLicenseItemSerializer,
 )
 from apps.licenses.services import LicenseService
 
@@ -35,12 +38,19 @@ from apps.licenses.services import LicenseService
         request=RevokeLicenseSerializer,
         responses={200: LicenseAssignmentSerializer},
     ),
+    bulk_assign=extend_schema(
+        tags=["Licenses"],
+        summary="Bulk Assign License to Employees",
+        request=BulkAssignLicenseItemSerializer(many=True),
+        responses={201: LicenseAssignmentSerializer(many=True)},
+    ),
 )
 class SoftwareLicenseViewSet(CRUDViewSet):
     """
     CRUD for software licenses with assign/revoke actions.
-    POST /api/v1/licenses/{id}/assign/   -> assign a seat
-    POST /api/v1/licenses/{id}/revoke/   -> revoke an assignment
+    POST /api/v1/licenses/{id}/assign/      -> assign a seat
+    POST /api/v1/licenses/{id}/bulk-assign/ -> bulk assign seats
+    POST /api/v1/licenses/{id}/revoke/      -> revoke an assignment
     """
 
     queryset = SoftwareLicense.objects.all()
@@ -50,6 +60,36 @@ class SoftwareLicenseViewSet(CRUDViewSet):
     ordering_fields = ["name", "expiry_date", "created_at"]
     filterset_fields = ["status", "license_type"]
 
+    def perform_destroy(self, instance):
+        """
+        Soft-delete the license AND bulk-revoke all its active assignments
+        in one atomic transaction.
+
+        Rationale: if the parent license is deleted, leaving assignments
+        in ACTIVE state is inconsistent — those employees would appear to
+        hold seats on a license that no longer exists.
+        """
+        with transaction.atomic():
+            now = timezone.now()
+
+            # Revoke every active assignment on this license
+            active_assignments = LicenseAssignment.objects.filter(
+                license=instance,
+                status=LicenseAssignment.Status.ACTIVE,
+                is_deleted=False,
+            )
+            active_assignments.update(
+                status=LicenseAssignment.Status.REVOKED,
+                revoked_at=now,
+                updated_at=now,
+                updated_by=self.request.user,
+            )
+
+            # Soft-delete the license itself (standard base behaviour)
+            instance.is_deleted = True
+            instance.updated_by = self.request.user
+            instance.save(update_fields=["is_deleted", "updated_by", "updated_at"])
+
     @action(detail=True, methods=["post"], url_path="assign",
             permission_classes=[IsAuthenticated, IsOrgAdminOrHR])
     def assign_license(self, request, pk=None):
@@ -58,14 +98,11 @@ class SoftwareLicenseViewSet(CRUDViewSet):
         serializer.is_valid(raise_exception=True)
 
         employee = serializer.validated_data["employee"]
-        asset = serializer.validated_data.get("asset")
-
         assigned_by = getattr(request.user, "employee_profile", None)
 
         assignment = LicenseService.assign(
             license_obj=license_obj,
             employee=employee,
-            asset=asset,
             assigned_by=assigned_by,
             created_by=request.user,
         )
@@ -86,6 +123,28 @@ class SoftwareLicenseViewSet(CRUDViewSet):
         )
         assignment = LicenseService.revoke(assignment, updated_by=request.user)
         return Response(LicenseAssignmentSerializer(assignment).data)
+
+    @action(detail=True, methods=["post"], url_path="bulk-assign",
+            permission_classes=[IsAuthenticated, IsOrgAdminOrHR])
+    def bulk_assign(self, request, pk=None):
+        license_obj = self.get_object()
+        serializer = BulkAssignLicenseItemSerializer(data=request.data, many=True)
+        serializer.is_valid(raise_exception=True)
+
+        assignments_data = serializer.validated_data
+        assigned_by = getattr(request.user, "employee_profile", None)
+
+        assignments = LicenseService.bulk_assign(
+            license_obj=license_obj,
+            assignments_data=assignments_data,
+            assigned_by=assigned_by,
+            created_by=request.user,
+        )
+
+        return Response(
+            LicenseAssignmentSerializer(assignments, many=True).data,
+            status=status.HTTP_201_CREATED,
+        )
 
 
 @extend_schema_view(

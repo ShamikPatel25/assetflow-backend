@@ -5,38 +5,45 @@ from apps.incidents.models import Incident, RepairRecord
 
 
 class IncidentSerializer(BaseModelSerializer):
-    reporter_name = serializers.SerializerMethodField()
-    assignee_name = serializers.SerializerMethodField()
-    asset_code = serializers.CharField(source="asset.asset_code", read_only=True, default=None)
-
     class Meta:
         model = Incident
         fields = BaseModelSerializer.base_fields(
-            "incident_number", "asset", "asset_code",
-            "reported_by", "reporter_name",
-            "assigned_to", "assignee_name",
+            "incident_number", "asset", 
+            "reported_by", 
+            "assigned_to", 
             "title", "description", "category", "priority", "status",
-            "ai_category", "ai_summary", "ai_confidence", "ai_model_version",
             "opened_at", "resolved_at", "closed_at",
         )
         read_only_fields = [
             "incident_number", "opened_at", "status",
             "resolved_at", "closed_at",
-            "ai_category", "ai_summary", "ai_confidence", "ai_model_version",
         ]
         extra_kwargs = {
             "reported_by": {"required": False, "allow_null": True}
         }
 
-    def get_reporter_name(self, obj) -> str | None:
-        if obj.reported_by:
-            return obj.reported_by.get_full_name()
-        return None
-
-    def get_assignee_name(self, obj) -> str | None:
-        if obj.assigned_to:
-            return obj.assigned_to.get_full_name()
-        return None
+    def to_representation(self, instance):
+        data = super().to_representation(instance)
+        
+        if instance.asset:
+            data["asset"] = {
+                "id": instance.asset_id,
+                "asset_code": instance.asset.asset_code,
+            }
+            
+        if instance.reported_by:
+            data["reported_by"] = {
+                "id": instance.reported_by_id,
+                "name": instance.reported_by.get_full_name()
+            }
+            
+        if instance.assigned_to:
+            data["assigned_to"] = {
+                "id": instance.assigned_to_id,
+                "name": instance.assigned_to.get_full_name()
+            }
+            
+        return data
 
     def validate(self, data):
         request = self.context.get("request")
@@ -54,18 +61,43 @@ class IncidentSerializer(BaseModelSerializer):
         return data
 
 
-class RepairRecordSerializer(BaseModelSerializer):
-    incident_number = serializers.CharField(
-        source="incident.incident_number", read_only=True
+class IncidentStatusUpdateSerializer(serializers.Serializer):
+    status = serializers.ChoiceField(choices=Incident.Status.choices)
+
+
+class BulkIncidentStatusUpdateSerializer(serializers.Serializer):
+    incident_ids = serializers.ListField(
+        child=serializers.UUIDField(),
+        allow_empty=False
     )
-    asset_code = serializers.CharField(source="asset.asset_code", read_only=True)
+    status = serializers.ChoiceField(choices=Incident.Status.choices)
+
+
+class RepairRecordSerializer(BaseModelSerializer):
     repair_start_date = FlexibleDateField(required=False, allow_null=True, default=None)
     repair_end_date = FlexibleDateField(required=False, allow_null=True, default=None)
 
     class Meta:
         model = RepairRecord
         fields = BaseModelSerializer.base_fields(
-            "incident", "incident_number", "asset", "asset_code",
+            "incident", "asset",
             "vendor_name", "repair_cost", "currency",
             "repair_start_date", "repair_end_date", "remarks",
         )
+
+    def to_representation(self, instance):
+        data = super().to_representation(instance)
+        
+        if instance.incident:
+            data["incident"] = {
+                "id": instance.incident_id,
+                "incident_number": instance.incident.incident_number,
+            }
+            
+        if instance.asset:
+            data["asset"] = {
+                "id": instance.asset_id,
+                "asset_code": instance.asset.asset_code,
+            }
+            
+        return data

@@ -2,6 +2,7 @@ from rest_framework import serializers
 
 from apps.base.serializers import BaseModelSerializer
 from apps.licenses.models import SoftwareLicense, LicenseAssignment
+from apps.employees.models import Employee
 
 
 class SoftwareLicenseSerializer(BaseModelSerializer):
@@ -19,10 +20,15 @@ class SoftwareLicenseSerializer(BaseModelSerializer):
 
 
 class LicenseAssignmentSerializer(BaseModelSerializer):
+    """
+    Read serializer for a license assignment.
+    A license seat is tied to an employee (their identity / email),
+    not to any specific hardware asset.
+    """
     class Meta:
         model = LicenseAssignment
         fields = BaseModelSerializer.base_fields(
-            "license", "employee", "asset", "assigned_by",
+            "license", "employee", "assigned_by",
             "assigned_at", "revoked_at", "status",
         )
         read_only_fields = ["assigned_at", "revoked_at", "status"]
@@ -47,20 +53,22 @@ class LicenseAssignmentSerializer(BaseModelSerializer):
         return data
 
 
-from apps.employees.models import Employee
-from apps.assets.models import Asset
-
 class AssignLicenseSerializer(serializers.Serializer):
+    """
+    Payload for assigning a license seat to an employee.
+    Only the employee is needed — licenses follow the person,
+    not the hardware they happen to be using today.
+    """
     employee = serializers.PrimaryKeyRelatedField(queryset=Employee.objects.all())
-    asset = serializers.PrimaryKeyRelatedField(queryset=Asset.objects.all(), required=False, allow_null=True)
-
-    def to_internal_value(self, data):
-        if hasattr(data, 'copy'):
-            data = data.copy()
-        if "asset" in data and data["asset"] == "":
-            data["asset"] = None
-        return super().to_internal_value(data)
 
 
 class RevokeLicenseSerializer(serializers.Serializer):
     assignment = serializers.UUIDField()
+
+
+class BulkAssignLicenseItemSerializer(serializers.Serializer):
+    """
+    One item in a bulk license assignment request.
+    Each item is just an employee — no asset linkage.
+    """
+    employee = serializers.PrimaryKeyRelatedField(queryset=Employee.objects.all())
