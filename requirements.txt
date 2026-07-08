@@ -24,6 +24,9 @@ python-dotenv==1.2.2
 # Logging & Monitoring
 sentry-sdk==2.19.0
 
+# Data Processing
+openpyxl==3.1.5
+
 # --- Dev / test (optional) ---
 # pytest==9.1.1
 # pytest-django==4.12.0

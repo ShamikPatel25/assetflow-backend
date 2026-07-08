@@ -102,14 +102,6 @@ class EmployeeSerializer(BaseModelSerializer):
                         
         return instance
 
-class EmployeeMinimalSerializer(serializers.ModelSerializer):
-    """Lightweight serializer for dropdowns and references."""
-
-    class Meta:
-        model = Employee
-        fields = ["id", "employee_code", "first_name", "last_name"]
-
-
 class EmployeeCreateSerializer(serializers.Serializer):
     
     first_name = serializers.CharField(required=True, max_length=100)

@@ -117,3 +117,94 @@ class TestNotificationServiceIntegration:
         )
         assert notifs.count() == 1
         assert "allocated" in notifs.first().title.lower()
+
+
+class TestNotificationServiceHRFanout:
+    """Service methods that fan out to active HR managers (bulk_create paths)."""
+
+    def test_notify_request_submitted(self, hr_user, employee, asset_request_factory):
+        from apps.notifications.services import NotificationService
+        req = asset_request_factory(requested_by=employee)
+        NotificationService.notify_request_submitted(req)
+        assert Notification.objects.filter(
+            recipient=hr_user, type="REQUEST_SUBMITTED"
+        ).exists()
+
+    def test_notify_license_expiring(self, hr_user, license_factory):
+        from apps.notifications.services import NotificationService
+        lic = license_factory(name="Expiring Soon")
+        NotificationService.notify_license_expiring(lic)
+        assert Notification.objects.filter(
+            recipient=hr_user, type="LICENSE_EXPIRING"
+        ).exists()
+
+    def test_notify_warranty_expiring(self, hr_user, asset):
+        from apps.notifications.services import NotificationService
+        NotificationService.notify_warranty_expiring(asset)
+        assert Notification.objects.filter(
+            recipient=hr_user, type="WARRANTY_EXPIRING"
+        ).exists()
+
+
+class TestNotificationRequestOutcomes:
+    """Direct-to-requester notifications for approve / reject decisions."""
+
+    def test_notify_request_approved(self, employee, category, asset_request_factory):
+        from apps.notifications.services import NotificationService
+        req = asset_request_factory(requested_by=employee, category=category)
+        NotificationService.notify_request_approved(req)
+        notif = Notification.objects.get(
+            recipient=employee.user, type="REQUEST_APPROVED"
+        )
+        assert category.name in notif.message
+
+    def test_notify_request_rejected_without_category(self, employee, asset_request_factory):
+        """No category on the request falls back to the generic 'an asset' phrase."""
+        from apps.notifications.services import NotificationService
+        req = asset_request_factory(requested_by=employee, category=None)
+        NotificationService.notify_request_rejected(req)
+        notif = Notification.objects.get(
+            recipient=employee.user, type="REQUEST_REJECTED"
+        )
+        assert "an asset" in notif.message
+
+
+class TestSendExpirationAlertsCommand:
+    """The cross-tenant `send_expiration_alerts` management command."""
+
+    def test_generates_warranty_and_license_alerts(
+        self, tenant, hr_user, asset_factory, category, license_factory,
+    ):
+        from datetime import date, timedelta
+        from django.core.management import call_command
+
+        soon = date.today() + timedelta(days=10)
+        asset_factory(name="WarrantySoon", category=category, warranty_expiry_date=soon)
+        license_factory(name="LicenseSoon", status="ACTIVE", expiry_date=soon)
+
+        call_command("send_expiration_alerts")
+
+        assert Notification.objects.filter(
+            recipient=hr_user, type="WARRANTY_EXPIRING"
+        ).exists()
+        assert Notification.objects.filter(
+            recipient=hr_user, type="LICENSE_EXPIRING"
+        ).exists()
+
+
+class TestNotificationViewSchemaBranch:
+    """get_queryset returns an empty set during schema (swagger) generation."""
+
+    def test_get_queryset_empty_for_fake_view(self, tenant):
+        from apps.notifications.views import NotificationViewSet
+        vs = NotificationViewSet()
+        vs.swagger_fake_view = True
+        assert vs.get_queryset().count() == 0
+
+
+class TestNotificationModel:
+    def test_str(self, employee_user, tenant):
+        notif = Notification.objects.create(
+            recipient=employee_user, title="Ping", message="m", type="GENERAL",
+        )
+        assert str(notif) == f"Ping -> {employee_user}"

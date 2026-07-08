@@ -7,7 +7,7 @@ from django.http import Http404
 from rest_framework.exceptions import NotFound
 from rest_framework import viewsets, mixins, status
 from rest_framework.response import Response
-from apps.audit.services import log_action
+from apps.audit import services
 
 logger = logging.getLogger(__name__)
 
@@ -58,8 +58,8 @@ class BaseViewSet(viewsets.GenericViewSet):
     def perform_create(self, serializer):
         with transaction.atomic():
             instance = serializer.save(created_by=self.request.user)
-            
-            log_action(
+
+            services.log_action(
                 user=self.request.user,
                 action="CREATE",
                 module=instance._meta.model_name.upper(),
@@ -68,13 +68,12 @@ class BaseViewSet(viewsets.GenericViewSet):
                 object_repr=str(instance),
                 request=self.request,
             )
-            return instance
 
     def perform_update(self, serializer):
         with transaction.atomic():
             instance = serializer.save(updated_by=self.request.user)
-            
-            log_action(
+
+            services.log_action(
                 user=self.request.user,
                 action="UPDATE",
                 module=instance._meta.model_name.upper(),
@@ -83,7 +82,6 @@ class BaseViewSet(viewsets.GenericViewSet):
                 object_repr=str(instance),
                 request=self.request,
             )
-            return instance
 
     def perform_destroy(self, instance):
         """Soft delete: mark is_deleted=True instead of actual removal."""
@@ -92,7 +90,7 @@ class BaseViewSet(viewsets.GenericViewSet):
             instance.updated_by = self.request.user
             instance.save(update_fields=["is_deleted", "updated_by", "updated_at"])
 
-            log_action(
+            services.log_action(
                 user=self.request.user,
                 action="DELETE",
                 module=instance._meta.model_name.upper(),
@@ -130,7 +128,7 @@ class CRUDViewSet(
     def destroy(self, request, *args, **kwargs):
         try:
             instance = self.get_object()
-        except Http404:
+        except (Http404, NotFound):
             lookup_url_kwarg = self.lookup_url_kwarg or self.lookup_field
             filter_kwargs = {self.lookup_field: self.kwargs[lookup_url_kwarg]}
             
