@@ -350,7 +350,7 @@ class TestLicenseSoftDeleteCascade:
         lic = license_factory(name="PartialDel", total_seats=5)
         assignment = LicenseService.assign(lic, employee=emp)
 
-        LicenseService.revoke(assignment)
+        assignment = LicenseService.revoke(assignment)
         revoked_at_before = assignment.revoked_at
 
         response = admin_api_client.delete(f"{self.base_url}{lic.id}/")

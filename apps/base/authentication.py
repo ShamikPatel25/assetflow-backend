@@ -13,6 +13,19 @@ class TenantJWTAuthentication(JWTAuthentication):
     based on the current tenant schema.
     """
 
+    def get_validated_token(self, raw_token):
+        """
+        Validates the token and checks if it has been blacklisted in the cache.
+        """
+        token = super().get_validated_token(raw_token)
+        jti = token.get(api_settings.JTI_CLAIM)
+        
+        from django.core.cache import cache
+        if jti and cache.get(f"blacklisted_{jti}"):
+            raise InvalidToken(_("Token is invalid or has been blacklisted."))
+            
+        return token
+
     def get_user(self, validated_token):
         """
         Attempts to find and return a user using the given validated token.

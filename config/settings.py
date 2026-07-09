@@ -29,7 +29,6 @@ SHARED_APPS = (
     # Third-party
     "rest_framework",
     "rest_framework_simplejwt",
-    # "rest_framework_simplejwt.token_blacklist",
     "corsheaders",
     "drf_spectacular",
     "django_filters",
@@ -43,7 +42,6 @@ TENANT_APPS = (
     "django.contrib.auth",
     "django.contrib.admin",
     "django.contrib.sessions",
-    # "rest_framework_simplejwt.token_blacklist",
 
     # Tenant business apps
     "apps.employees",
@@ -206,7 +204,8 @@ SIMPLE_JWT = {
         days=int(os.getenv("REFRESH_TOKEN_LIFETIME_DAYS", 7))
     ),
     "ROTATE_REFRESH_TOKENS": True,
-    "BLACKLIST_AFTER_ROTATION": False,  # token_blacklist app is not installed
+    "BLACKLIST_AFTER_ROTATION": True,  # blacklist old refresh tokens on rotation
+    "UPDATE_LAST_LOGIN": True,
     "AUTH_HEADER_TYPES": ("Bearer",),
 }
 

@@ -4,6 +4,7 @@ from rest_framework.permissions import IsAuthenticated, AllowAny
 from rest_framework.response import Response
 from rest_framework.views import APIView
 from rest_framework_simplejwt.tokens import RefreshToken
+from rest_framework_simplejwt.exceptions import TokenError
 from drf_spectacular.utils import extend_schema
 
 from apps.employees.models import Employee
@@ -131,3 +132,55 @@ class ChangePasswordView(APIView):
         request.user.set_password(serializer.validated_data["new_password"])
         request.user.save(update_fields=["password", "updated_at"])
         return Response({"message": "Password changed successfully."})
+
+
+class LogoutRequestSerializer(drf_serializers.Serializer):
+    refresh = drf_serializers.CharField(help_text="The refresh token to invalidate.")
+
+    class Meta:
+        ref_name = "EmployeesLogoutRequest"
+
+
+@extend_schema(tags=["Tenant Auth"])
+class LogoutView(APIView):
+    """
+    Blacklist the refresh token to invalidate the session.
+    After calling this endpoint the provided refresh token (and its rotated
+    descendants) can no longer be used to obtain new access tokens.
+    """
+
+    permission_classes = [IsAuthenticated]
+
+    @extend_schema(
+        summary="Logout / Blacklist Refresh Token",
+        request=LogoutRequestSerializer,
+        responses={200: MessageSerializer, 400: MessageSerializer},
+    )
+    def post(self, request):
+        refresh_token = request.data.get("refresh")
+        if not refresh_token:
+            return Response(
+                {"message": "Refresh token is required."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        try:
+            from django.core.cache import cache
+            token = RefreshToken(refresh_token)
+            
+            # Use Django cache for token blacklisting (faster & avoids TenantUser model conflict)
+            jti = token["jti"]
+            if cache.get(f"blacklisted_{jti}"):
+                return Response(
+                    {"message": "Token is invalid or has already been blacklisted."},
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+                
+            timeout = token.lifetime.total_seconds()
+            cache.set(f"blacklisted_{jti}", True, timeout=timeout)
+
+        except TokenError:
+            return Response(
+                {"message": "Token is invalid or has already been blacklisted."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        return Response({"message": "Logged out successfully."})

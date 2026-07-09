@@ -68,7 +68,7 @@ DashboardResponseSerializer = inline_serializer(
 )
 
 
-@extend_schema(tags=["Dashboard"])
+@extend_schema(tags=["Reports"])
 class DashboardView(APIView):
     """Organization dashboard summary statistics."""
 

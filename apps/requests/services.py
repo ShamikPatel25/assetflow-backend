@@ -7,6 +7,7 @@ from apps.base.errors import AFValidationError
 from apps.allocations.services import AllocationService
 from apps.assets.models import Asset
 from apps.notifications.services import NotificationService
+from apps.audit.services import log_action
 
 
 class AssetRequestService:
@@ -32,104 +33,168 @@ class AssetRequestService:
 
     @staticmethod
     def approve(request_obj, approved_by, asset_id=None, notes="", updated_by=None):
-        if request_obj.status != AssetRequest.Status.PENDING:
-            if request_obj.status == AssetRequest.Status.REJECTED:
-                msg = "This request is already rejected."
-            elif request_obj.status == AssetRequest.Status.APPROVED:
-                msg = "This request is already approved."
-            else:
-                msg = f"Cannot approve request with status {request_obj.status}."
-            raise AFValidationError(msg)
-
-
-        asset_to_allocate = None
-        if asset_id:
-            try:
-                asset_to_allocate = Asset.objects.get(pk=asset_id)
-            except Asset.DoesNotExist:
-                raise AFValidationError("Provided asset does not exist.")
-        else:
-            # Try to find an available asset in the requested category
-            if request_obj.category:
-                asset_to_allocate = Asset.objects.filter(
-                    category=request_obj.category,
-                    status=Asset.Status.AVAILABLE
-                ).first()
-
-        if not asset_to_allocate:
-            raise AFValidationError("No available assets found to fulfill this request.")
-            
-        if asset_to_allocate.status != Asset.Status.AVAILABLE:
-            raise AFValidationError("The selected asset is not available for allocation.")
-
         with transaction.atomic():
-            request_obj.status = AssetRequest.Status.APPROVED
-            request_obj.approved_by = approved_by
-            request_obj.approved_at = timezone.now()
-            
-            # Create the allocation
+            # Acquire row lock BEFORE checking status to prevent approve/cancel races
+            locked_req = AssetRequest.objects.select_for_update().get(pk=request_obj.pk)
+
+            if locked_req.status != AssetRequest.Status.PENDING:
+                if locked_req.status == AssetRequest.Status.CANCELLED:
+                    msg = "This request has been cancelled and cannot be approved."
+                elif locked_req.status == AssetRequest.Status.REJECTED:
+                    msg = "This request is already rejected."
+                elif locked_req.status == AssetRequest.Status.APPROVED:
+                    msg = "This request is already approved."
+                elif locked_req.status == AssetRequest.Status.ALLOCATED:
+                    msg = "This request has already been fulfilled."
+                else:
+                    msg = f"Cannot approve request with status {locked_req.status}."
+                raise AFValidationError(msg)
+
+            asset_to_allocate = None
+            if asset_id:
+                # Lock the specific asset row too
+                try:
+                    asset_to_allocate = Asset.objects.select_for_update().get(pk=asset_id)
+                except Asset.DoesNotExist:
+                    raise AFValidationError("Provided asset does not exist.")
+            else:
+                # Find and lock an available asset in the requested category
+                if locked_req.category:
+                    asset_to_allocate = (
+                        Asset.objects.select_for_update(skip_locked=True)
+                        .filter(
+                            category=locked_req.category,
+                            status=Asset.Status.AVAILABLE,
+                            is_deleted=False,
+                        )
+                        .first()
+                    )
+
+            if not asset_to_allocate:
+                raise AFValidationError(
+                    "No available assets found to fulfill this request."
+                )
+
+            if asset_to_allocate.status != Asset.Status.AVAILABLE:
+                raise AFValidationError(
+                    "The selected asset is not available for allocation."
+                )
+
+            locked_req.status = AssetRequest.Status.APPROVED
+            locked_req.approved_by = approved_by
+            locked_req.approved_at = timezone.now()
+
+            # AllocationService.allocate() already runs inside its own atomic
+            # block and calls select_for_update on the asset — safe to nest.
             allocation = AllocationService.allocate(
                 asset=asset_to_allocate,
-                employee=request_obj.requested_by,
+                employee=locked_req.requested_by,
                 assigned_by=approved_by,
-                remarks=notes or f"Generated from Request {request_obj.request_number}"
+                remarks=notes or f"Generated from Request {locked_req.request_number}",
             )
-            
-            request_obj.allocation = allocation
-            
-            request_obj.updated_by = updated_by
-            
-            request_obj.save(update_fields=[
+
+            locked_req.allocation = allocation
+            locked_req.updated_by = updated_by
+
+            locked_req.save(update_fields=[
                 "status", "approved_by", "approved_at", "updated_at", "allocation", "updated_by"
             ])
 
-        NotificationService.notify_request_approved(request_obj)
-    
-        return request_obj
+        NotificationService.notify_request_approved(locked_req)
+
+        log_action(
+            user=updated_by,
+            action="APPROVE",
+            module="ASSET_REQUEST",
+            object_type="AssetRequest",
+            object_id=locked_req.id,
+            object_repr=str(locked_req),
+            new_data={
+                "status": locked_req.status,
+                "approved_by": str(locked_req.approved_by_id) if locked_req.approved_by_id else None,
+            },
+        )
+
+        return locked_req
 
     @staticmethod
     def reject(request_obj, rejected_by, rejection_reason="", updated_by=None):
-        if request_obj.status != AssetRequest.Status.PENDING:
-            if request_obj.status == AssetRequest.Status.REJECTED:
-                msg = "This request is already rejected."
-            elif request_obj.status == AssetRequest.Status.APPROVED:
-                msg = "This request is already approved."
-            else:
-                msg = f"Cannot reject request with status {request_obj.status}."
-            raise AFValidationError(msg)
-
         with transaction.atomic():
-            request_obj.status = AssetRequest.Status.REJECTED
-            request_obj.rejected_by = rejected_by
-            request_obj.rejected_at = timezone.now()
-            request_obj.rejection_reason = rejection_reason
-            request_obj.updated_by = updated_by
-            request_obj.save(update_fields=[
+            locked_req = AssetRequest.objects.select_for_update().get(pk=request_obj.pk)
+
+            if locked_req.status != AssetRequest.Status.PENDING:
+                if locked_req.status == AssetRequest.Status.CANCELLED:
+                    msg = "This request has been cancelled and cannot be rejected."
+                elif locked_req.status == AssetRequest.Status.REJECTED:
+                    msg = "This request is already rejected."
+                elif locked_req.status == AssetRequest.Status.APPROVED:
+                    msg = "This request is already approved and cannot be rejected."
+                elif locked_req.status == AssetRequest.Status.ALLOCATED:
+                    msg = "This request has already been fulfilled."
+                else:
+                    msg = f"Cannot reject request with status {locked_req.status}."
+                raise AFValidationError(msg)
+
+            locked_req.status = AssetRequest.Status.REJECTED
+            locked_req.rejected_by = rejected_by
+            locked_req.rejected_at = timezone.now()
+            locked_req.rejection_reason = rejection_reason
+            locked_req.updated_by = updated_by
+            locked_req.save(update_fields=[
                 "status", "rejected_by", "rejected_at",
                 "rejection_reason", "updated_at", "updated_by"
             ])
 
-        NotificationService.notify_request_rejected(request_obj)
+        NotificationService.notify_request_rejected(locked_req)
 
-        return request_obj
+        log_action(
+            user=updated_by,
+            action="REJECT",
+            module="ASSET_REQUEST",
+            object_type="AssetRequest",
+            object_id=locked_req.id,
+            object_repr=str(locked_req),
+            new_data={
+                "status": locked_req.status,
+                "rejection_reason": rejection_reason,
+            },
+        )
+
+        return locked_req
 
     @staticmethod
     def cancel(request_obj, updated_by=None):
-        if request_obj.status != AssetRequest.Status.PENDING:
-            if request_obj.status == AssetRequest.Status.REJECTED:
-                msg = "This request is already rejected."
-            elif request_obj.status == AssetRequest.Status.CANCELLED:
-                msg = "This request is already cancelled."
-            elif request_obj.status == AssetRequest.Status.APPROVED:
-                msg = "This request is already approved and cannot be cancelled."
-            else:
-                msg = f"Cannot cancel request with status {request_obj.status}."
-            raise AFValidationError(msg)
+        with transaction.atomic():
+            locked_req = AssetRequest.objects.select_for_update().get(pk=request_obj.pk)
 
-        request_obj.status = AssetRequest.Status.CANCELLED
-        request_obj.updated_by = updated_by
-        request_obj.save(update_fields=["status", "updated_at", "updated_by"])
-        return request_obj
+            if locked_req.status != AssetRequest.Status.PENDING:
+                if locked_req.status == AssetRequest.Status.REJECTED:
+                    msg = "This request is already rejected."
+                elif locked_req.status == AssetRequest.Status.CANCELLED:
+                    msg = "This request is already cancelled."
+                elif locked_req.status == AssetRequest.Status.APPROVED:
+                    msg = "This request is already approved and cannot be cancelled."
+                elif locked_req.status == AssetRequest.Status.ALLOCATED:
+                    msg = "This request has already been fulfilled and cannot be cancelled."
+                else:
+                    msg = f"Cannot cancel request with status {locked_req.status}."
+                raise AFValidationError(msg)
+
+            locked_req.status = AssetRequest.Status.CANCELLED
+            locked_req.updated_by = updated_by
+            locked_req.save(update_fields=["status", "updated_at", "updated_by"])
+
+        log_action(
+            user=updated_by,
+            action="CANCEL",
+            module="ASSET_REQUEST",
+            object_type="AssetRequest",
+            object_id=locked_req.id,
+            object_repr=str(locked_req),
+            new_data={"status": locked_req.status},
+        )
+
+        return locked_req
 
     @staticmethod
     def bulk_approve(request_ids, approved_by, notes="", updated_by=None):
@@ -158,7 +223,7 @@ class AssetRequestService:
                 success_count += 1
             except AFValidationError as e:
                 failed_count += 1
-                errors.append(f"Request {req_obj.request_number}: {str(e)}")
+                errors.append(f"Request {req_obj.request_number}: {e.detail.get('message', str(e))}")
             except Exception as e:
                 failed_count += 1
                 errors.append(f"Request {req_obj.request_number}: Internal error - {str(e)}")
@@ -196,7 +261,7 @@ class AssetRequestService:
                 success_count += 1
             except AFValidationError as e:
                 failed_count += 1
-                errors.append(f"Request {req_obj.request_number}: {str(e)}")
+                errors.append(f"Request {req_obj.request_number}: {e.detail.get('message', str(e))}")
             except Exception as e:
                 failed_count += 1
                 errors.append(f"Request {req_obj.request_number}: Internal error - {str(e)}")

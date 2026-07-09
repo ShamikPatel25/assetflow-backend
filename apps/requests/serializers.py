@@ -19,7 +19,8 @@ class AssetRequestSerializer(BaseModelSerializer):
             "allocation",
         )
         read_only_fields = [
-            "request_number", "status",
+            # System-controlled fields: never settable by the requester
+            "request_number", "requested_by", "status",
             "approved_by", "rejected_by",
             "approved_at", "rejected_at", "allocation",
         ]

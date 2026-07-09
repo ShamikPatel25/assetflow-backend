@@ -14,3 +14,7 @@ error_messages = ErrorMessageDict({
     codes.PERMISSION_DENIED: "You do not have permission to perform this action.",
     codes.INVALID_STATUS_TRANSITION: "Invalid status transition.",
 })
+
+def message(code):
+    """Helper to return a dict with code and message."""
+    return {"code": code, "message": error_messages.get(code)}

@@ -178,7 +178,7 @@ class TestSendExpirationAlertsCommand:
         from datetime import date, timedelta
         from django.core.management import call_command
 
-        soon = date.today() + timedelta(days=10)
+        soon = date.today() + timedelta(days=7)
         asset_factory(name="WarrantySoon", category=category, warranty_expiry_date=soon)
         license_factory(name="LicenseSoon", status="ACTIVE", expiry_date=soon)
 

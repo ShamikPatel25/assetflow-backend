@@ -15,7 +15,9 @@ class Notification(models.Model):
         INCIDENT_REPORTED = "INCIDENT_REPORTED", "Incident Reported"
         INCIDENT_UPDATED = "INCIDENT_UPDATED", "Incident Updated"
         LICENSE_EXPIRING = "LICENSE_EXPIRING", "License Expiring"
+        LICENSE_EXPIRED = "LICENSE_EXPIRED", "License Expired"
         WARRANTY_EXPIRING = "WARRANTY_EXPIRING", "Warranty Expiring"
+        WARRANTY_EXPIRED = "WARRANTY_EXPIRED", "Warranty Expired"
         GENERAL = "GENERAL", "General"
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     recipient = models.ForeignKey(

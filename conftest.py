@@ -383,13 +383,28 @@ def api_client():
     return APIClient(SERVER_NAME="test.localhost")
 
 
+def _make_token_for_tenant_user(user):
+    """
+    Create a JWT access token for a TenantUser without touching OutstandingToken.
+
+    RefreshToken.for_user() tries to persist an OutstandingToken linked to
+    AUTH_USER_MODEL (accounts.User), which fails for TenantUser instances.
+    We build the token payload manually instead.
+    """
+    from rest_framework_simplejwt.tokens import RefreshToken
+    token = RefreshToken()
+    token["user_id"] = str(user.id)
+    token["role"] = getattr(user, "role", "EMPLOYEE")
+    token["scope"] = "tenant"
+    return token
+
+
 @pytest.fixture()
 def admin_api_client(org_admin_user):
     """API client authenticated as ORGANIZATION_ADMIN."""
     from rest_framework.test import APIClient
-    from rest_framework_simplejwt.tokens import RefreshToken
     client = APIClient(SERVER_NAME="test.localhost")
-    token = RefreshToken.for_user(org_admin_user)
+    token = _make_token_for_tenant_user(org_admin_user)
     client.credentials(HTTP_AUTHORIZATION=f"Bearer {token.access_token}")
     return client
 
@@ -398,9 +413,8 @@ def admin_api_client(org_admin_user):
 def hr_api_client(hr_user):
     """API client authenticated as HR_MANAGER."""
     from rest_framework.test import APIClient
-    from rest_framework_simplejwt.tokens import RefreshToken
     client = APIClient(SERVER_NAME="test.localhost")
-    token = RefreshToken.for_user(hr_user)
+    token = _make_token_for_tenant_user(hr_user)
     client.credentials(HTTP_AUTHORIZATION=f"Bearer {token.access_token}")
     return client
 
@@ -409,9 +423,8 @@ def hr_api_client(hr_user):
 def employee_api_client(employee_user):
     """API client authenticated as EMPLOYEE."""
     from rest_framework.test import APIClient
-    from rest_framework_simplejwt.tokens import RefreshToken
     client = APIClient(SERVER_NAME="test.localhost")
-    token = RefreshToken.for_user(employee_user)
+    token = _make_token_for_tenant_user(employee_user)
     client.credentials(HTTP_AUTHORIZATION=f"Bearer {token.access_token}")
     return client
 

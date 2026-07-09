@@ -139,7 +139,7 @@ class NotificationService:
 
     @staticmethod
     def notify_license_expiring(license_obj):
-        """Notify HR Managers that a license is expiring."""
+        """Notify HR Managers that a license is expiring soon."""
         hr_managers = NotificationService._get_hr_managers()
         notifications = []
         for hr in hr_managers:
@@ -147,8 +147,28 @@ class NotificationService:
                 Notification(
                     recipient=hr,
                     title="License Expiring",
-                    message=f"The license for {license_obj.name} expires on {license_obj.expiry_date}.",
+                    message=f"The license for {license_obj.name} expires on {license_obj.expiry_date}. Please renew it before it stops working.",
                     type=Notification.Type.LICENSE_EXPIRING,
+                    payload={
+                        "license_id": str(license_obj.id)
+                    }
+                )
+            )
+        if notifications:
+            Notification.objects.bulk_create(notifications)
+
+    @staticmethod
+    def notify_license_expired(license_obj):
+        """Notify HR Managers daily that a license has already expired and is not working."""
+        hr_managers = NotificationService._get_hr_managers()
+        notifications = []
+        for hr in hr_managers:
+            notifications.append(
+                Notification(
+                    recipient=hr,
+                    title="License Expired — Action Required",
+                    message=f"The license for {license_obj.name} expired on {license_obj.expiry_date}. Software may have stopped working. Please renew immediately.",
+                    type=Notification.Type.LICENSE_EXPIRED,
                     payload={
                         "license_id": str(license_obj.id)
                     }
@@ -169,6 +189,26 @@ class NotificationService:
                     title="Warranty Expiring",
                     message=f"The warranty for asset {asset.name} expires on {asset.warranty_expiry_date}.",
                     type=Notification.Type.WARRANTY_EXPIRING,
+                    payload={
+                        "asset_id": str(asset.id)
+                    }
+                )
+            )
+        if notifications:
+            Notification.objects.bulk_create(notifications)
+
+    @staticmethod
+    def notify_warranty_expired(asset):
+        """Notify HR Managers that an asset warranty has already expired."""
+        hr_managers = NotificationService._get_hr_managers()
+        notifications = []
+        for hr in hr_managers:
+            notifications.append(
+                Notification(
+                    recipient=hr,
+                    title="Warranty Expired",
+                    message=f"The warranty for asset {asset.name} expired on {asset.warranty_expiry_date}. Please renew or take necessary action.",
+                    type=Notification.Type.WARRANTY_EXPIRED,
                     payload={
                         "asset_id": str(asset.id)
                     }

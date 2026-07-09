@@ -8,8 +8,6 @@ from drf_spectacular.utils import extend_schema
 from apps.accounts.serializers import LoginSerializer, UserSerializer
 
 
-# ── Response-only serializers for Swagger docs ──────────────────────────
-
 class TokenResponseSerializer(drf_serializers.Serializer):
     access = drf_serializers.CharField()
     refresh = drf_serializers.CharField()
@@ -34,8 +32,6 @@ class MessageSerializer(drf_serializers.Serializer):
     class Meta:
         ref_name = "AccountsMessage"
 
-
-# ── Views ────────────────────────────────────────────────────────────────
 
 @extend_schema(tags=["Platform Auth"])
 class PlatformLoginView(APIView):
@@ -90,6 +86,12 @@ class TokenRefreshView(APIView):
             )
         try:
             token = RefreshToken(refresh_token)
+            
+            from django.core.cache import cache
+            jti = token.get("jti")
+            if jti and cache.get(f"blacklisted_{jti}"):
+                raise Exception("Token is blacklisted.")
+                
             return Response({
                 "access": str(token.access_token),
                 "refresh": str(token),

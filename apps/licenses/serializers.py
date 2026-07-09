@@ -31,7 +31,8 @@ class LicenseAssignmentSerializer(BaseModelSerializer):
             "license", "employee", "assigned_by",
             "assigned_at", "revoked_at", "status",
         )
-        read_only_fields = ["assigned_at", "revoked_at", "status"]
+        # System-controlled: all workflow fields set by the service layer
+        read_only_fields = ["assigned_by", "assigned_at", "revoked_at", "status"]
 
     def to_representation(self, instance):
         data = super().to_representation(instance)

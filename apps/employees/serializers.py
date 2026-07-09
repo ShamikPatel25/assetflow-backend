@@ -39,6 +39,9 @@ class EmployeeSerializer(BaseModelSerializer):
             "phone", "designation", "department",
             "manager", "joining_date", "exit_date",
         )
+        # System-controlled: user FK is set at creation, never updated via API;
+        # employee_code is generated automatically.
+        read_only_fields = ["user", "employee_code"]
 
     def to_representation(self, instance):
         data = super().to_representation(instance)

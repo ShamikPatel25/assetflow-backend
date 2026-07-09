@@ -617,10 +617,10 @@ class TestEmployeeSerializerValidation:
             partial=True,
             context={"request": _Req()},
         )
-        # BaseModelSerializer.is_valid raises instead of returning False.
+        # BaseModelSerializer.is_valid(raise_exception=True) raises AFValidationError.
         from apps.base.errors import AFValidationError
         with pytest.raises(AFValidationError):
-            ser.is_valid()
+            ser.is_valid(raise_exception=True)
 
     def test_email_uniqueness_on_update(self, tenant, employee_factory,
                                         tenant_user_factory, admin_employee):
@@ -640,7 +640,7 @@ class TestEmployeeSerializerValidation:
         )
         from apps.base.errors import AFValidationError
         with pytest.raises(AFValidationError):
-            ser.is_valid()
+            ser.is_valid(raise_exception=True)
 
     def test_update_changes_email_and_resends_invite_for_inactive(
         self, tenant, monkeypatch
