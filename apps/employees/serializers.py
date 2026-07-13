@@ -1,6 +1,8 @@
 from rest_framework import serializers
 
 from apps.base.serializers import BaseModelSerializer, FlexibleDateField
+from apps.base.validators import validate_phone_number, validate_email_format
+from apps.base.utils import get_primary_domain
 from apps.employees.models import Department, Employee, TenantUser
 from apps.accounts.utils import send_invitation_email
 from apps.employees.utils import generate_employee_code
@@ -60,13 +62,7 @@ class EmployeeSerializer(BaseModelSerializer):
         return data
 
     def validate_phone(self, value):
-        if not value:
-            return value
-        if not value.isdigit():
-            raise serializers.ValidationError("Only numbers are allowed.")
-        if not (10 <= len(value) <= 15):
-            raise serializers.ValidationError("10-15 digits only allowed.")
-        return value
+        return validate_phone_number(value)
 
     def validate(self, data):
         request = self.context.get("request")
@@ -99,8 +95,7 @@ class EmployeeSerializer(BaseModelSerializer):
                 # If they haven't set up their account, resend the invite to the new email
                 if not instance.user.is_active:
                     tenant = connection.tenant
-                    domain_obj = tenant.domains.filter(is_primary=True).first()
-                    domain_name = domain_obj.domain if domain_obj else "localhost"
+                    domain_name = get_primary_domain(tenant)
                     send_invitation_email(instance.user, tenant.name, domain_name)
                         
         return instance
@@ -124,11 +119,8 @@ class EmployeeCreateSerializer(serializers.Serializer):
     ], required=True)
 
     def validate_email(self, value):
-        if " " in value:
-            raise serializers.ValidationError("Email cannot contain spaces.")
-        if any(char.isupper() for char in value):
-            raise serializers.ValidationError("Email must be in lowercase.")
-            
+        validate_email_format(value)
+
         if TenantUser.objects.filter(email=value).exists():
             raise serializers.ValidationError("This email is already in use by another user.")
         return value
@@ -141,13 +133,7 @@ class EmployeeCreateSerializer(serializers.Serializer):
         return value
 
     def validate_phone(self, value):
-        if not value:
-            return value
-        if not value.isdigit():
-            raise serializers.ValidationError("Only numbers are allowed.")
-        if not (10 <= len(value) <= 15):
-            raise serializers.ValidationError("10-15 digits only allowed.")
-        return value
+        return validate_phone_number(value)
 
     def validate_department(self, value):
         if not value:
@@ -207,8 +193,7 @@ class EmployeeCreateSerializer(serializers.Serializer):
             
             # Send invitation email
             tenant = connection.tenant
-            domain_obj = tenant.domains.filter(is_primary=True).first()
-            domain_name = domain_obj.domain if domain_obj else "localhost"
+            domain_name = get_primary_domain(tenant)
             send_invitation_email(user, tenant.name, domain_name)
             
         return employee

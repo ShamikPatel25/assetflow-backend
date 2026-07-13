@@ -7,6 +7,7 @@ import openpyxl
 from django.core.exceptions import ObjectDoesNotExist
 
 from apps.assets.models import Asset, AssetCategory
+from django.conf import settings
 
 
 def export_assets_to_excel(queryset):
@@ -168,7 +169,7 @@ def import_assets_from_excel(file_obj, user=None):
                 status=str(row_data.get("Status", Asset.Status.AVAILABLE)).strip() if row_data.get("Status") else Asset.Status.AVAILABLE,
                 condition=str(row_data.get("Condition", Asset.Condition.NEW)).strip() if row_data.get("Condition") else Asset.Condition.NEW,
                 purchase_cost=purchase_cost,
-                currency=str(row_data.get("Currency", "INR")).strip() if row_data.get("Currency") else "INR",
+                currency=str(row_data.get("Currency", settings.DEFAULT_CURRENCY)).strip() if row_data.get("Currency") else settings.DEFAULT_CURRENCY,
                 purchase_date=purchase_date,
                 warranty_expiry_date=warranty_date,
                 metadata=metadata,

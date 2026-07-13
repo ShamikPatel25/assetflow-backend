@@ -349,6 +349,23 @@ if not DEBUG:
     CSRF_COOKIE_SECURE = True
     X_FRAME_OPTIONS = "DENY"
 
+# Frontend
+FRONTEND_BASE_URL = os.getenv("FRONTEND_BASE_URL", "http://localhost:3000")
+
+
+# Business Constants & Settings
+DEFAULT_CURRENCY = os.getenv("DEFAULT_CURRENCY", "INR")
+
+REF_PREFIX_ALLOCATION = os.getenv("REF_PREFIX_ALLOCATION", "ALLOC")
+REF_PREFIX_REQUEST    = os.getenv("REF_PREFIX_REQUEST", "REQ")
+REF_PREFIX_INCIDENT   = os.getenv("REF_PREFIX_INCIDENT", "INC")
+
+EXPIRY_ALERT_DAYS = int(os.getenv("EXPIRY_ALERT_DAYS", 30))
+GLOBAL_SEARCH_LIMIT = int(os.getenv("GLOBAL_SEARCH_LIMIT", 5))
+AI_REQUEST_TIMEOUT = int(os.getenv("AI_REQUEST_TIMEOUT", 15))
+DASHBOARD_CACHE_TTL = int(os.getenv("DASHBOARD_CACHE_TTL", 900))  # seconds (15 minutes)
+
+
 # Email Configuration
 EMAIL_BACKEND = os.getenv("EMAIL_BACKEND", "django.core.mail.backends.smtp.EmailBackend")
 EMAIL_HOST = os.getenv("EMAIL_HOST", "smtp.gmail.com")

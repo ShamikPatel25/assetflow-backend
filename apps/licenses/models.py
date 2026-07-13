@@ -1,5 +1,6 @@
 from django.db import models
 
+from django.conf import settings
 from apps.base.models import AbstractBaseModel
 
 
@@ -29,7 +30,7 @@ class SoftwareLicense(AbstractBaseModel):
     purchase_date = models.DateField(null=True, blank=True)
     expiry_date = models.DateField(null=True, blank=True)
     cost = models.DecimalField(max_digits=12, decimal_places=2, null=True, blank=True)
-    currency = models.CharField(max_length=10, default="INR")
+    currency = models.CharField(max_length=10, default=settings.DEFAULT_CURRENCY)
     status = models.CharField(
         max_length=20,
         choices=Status.choices,

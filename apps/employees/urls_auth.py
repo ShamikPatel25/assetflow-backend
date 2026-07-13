@@ -4,6 +4,8 @@ from apps.employees.views_auth import (
     LogoutView,
     ProfileView,
     ChangePasswordView,
+    ForgotPasswordView,
+    ResetPasswordView,
 )
 
 from apps.employees.views_invitation import (
@@ -22,4 +24,8 @@ urlpatterns = [
     path("invitation/validate/", InvitationValidateView.as_view(), name="invitation-validate"),
     path("invitation/setup/", InvitationSetupView.as_view(), name="invitation-setup"),
     path("invitation/resend/", InvitationResendView.as_view(), name="invitation-resend"),
+
+    # Password Reset endpoints
+    path("password/forgot/", ForgotPasswordView.as_view(), name="forgot-password"),
+    path("password/reset/", ResetPasswordView.as_view(), name="reset-password"),
 ]

@@ -1005,6 +1005,7 @@ class TestChangePasswordSuccess:
     def test_change_password_success(self, hr_api_client, hr_user):
         response = hr_api_client.post(self.url, data={
             "old_password": "testpass123", "new_password": "BrandNewPass1",
+            "confirm_password": "BrandNewPass1",
         })
         assert response.status_code == status.HTTP_200_OK
         assert "changed successfully" in response.data["message"].lower()

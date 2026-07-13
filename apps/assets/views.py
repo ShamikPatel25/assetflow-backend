@@ -100,12 +100,12 @@ class AssetViewSet(CRUDViewSet):
     @action(detail=False, methods=['post'], parser_classes=[MultiPartParser])
     def import_excel(self, request):
         if 'file' not in request.FILES:
-            return Response({"error": "No file provided."}, status=status.HTTP_400_BAD_REQUEST)
-        
+            return Response({"message": "No file provided."}, status=status.HTTP_400_BAD_REQUEST)
+
         file_obj = request.FILES['file']
-        
+
         if not file_obj.name.lower().endswith('.xlsx'):
-            return Response({"error": "Invalid file format. Please upload a valid .xlsx Excel file."}, status=status.HTTP_400_BAD_REQUEST)
+            return Response({"message": "Invalid file format. Please upload a valid .xlsx Excel file."}, status=status.HTTP_400_BAD_REQUEST)
             
         try:
             result = import_assets_from_excel(file_obj, user=request.user)
@@ -113,5 +113,5 @@ class AssetViewSet(CRUDViewSet):
         except Exception as e:
             error_msg = str(e)
             if "valid workbook part" in error_msg.lower() or "zipfile" in error_msg.lower():
-                return Response({"error": "The uploaded file is corrupted or not a valid Excel file. Please upload a valid .xlsx file."}, status=status.HTTP_400_BAD_REQUEST)
-            return Response({"error": f"Failed to process file: {error_msg}"}, status=status.HTTP_400_BAD_REQUEST)
+                return Response({"message": "The uploaded file is corrupted or not a valid Excel file. Please upload a valid .xlsx file."}, status=status.HTTP_400_BAD_REQUEST)
+            return Response({"message": f"Failed to process file: {error_msg}"}, status=status.HTTP_400_BAD_REQUEST)

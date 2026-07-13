@@ -570,7 +570,7 @@ class TestExcelEndpoints:
     def test_import_no_file_returns_400(self, hr_api_client, tenant):
         response = hr_api_client.post(f"{self.base_url}import_excel/", data={}, format="multipart")
         assert response.status_code == status.HTTP_400_BAD_REQUEST
-        assert "No file provided" in response.data["error"]
+        assert "No file provided" in response.data["message"]
 
     def test_import_wrong_extension_returns_400(self, hr_api_client, tenant):
         from django.core.files.uploadedfile import SimpleUploadedFile
@@ -581,7 +581,7 @@ class TestExcelEndpoints:
             f"{self.base_url}import_excel/", data={"file": upload}, format="multipart"
         )
         assert response.status_code == status.HTTP_400_BAD_REQUEST
-        assert "Invalid file format" in response.data["error"]
+        assert "Invalid file format" in response.data["message"]
 
     def test_import_corrupt_xlsx_returns_400(self, hr_api_client, tenant):
         from django.core.files.uploadedfile import SimpleUploadedFile
@@ -593,7 +593,7 @@ class TestExcelEndpoints:
             f"{self.base_url}import_excel/", data={"file": upload}, format="multipart"
         )
         assert response.status_code == status.HTTP_400_BAD_REQUEST
-        assert "error" in response.data
+        assert "message" in response.data
 
     def test_import_zipfile_error_returns_friendly_message(self, hr_api_client, category, tenant):
         """A zipfile/workbook parse error maps to the 'corrupted file' 400 branch."""
@@ -615,7 +615,7 @@ class TestExcelEndpoints:
                 f"{self.base_url}import_excel/", data={"file": upload}, format="multipart"
             )
         assert response.status_code == status.HTTP_400_BAD_REQUEST
-        assert "corrupted" in response.data["error"].lower()
+        assert "corrupted" in response.data["message"].lower()
 
     def test_import_valid_file_creates_assets(self, hr_api_client, category, tenant):
         from django.core.files.uploadedfile import SimpleUploadedFile

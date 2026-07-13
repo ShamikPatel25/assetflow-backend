@@ -5,6 +5,7 @@ from rest_framework.permissions import IsAuthenticated
 from drf_spectacular.utils import extend_schema, OpenApiParameter
 
 from apps.assets.models import Asset
+from django.conf import settings
 from apps.employees.models import Employee
 from apps.incidents.models import Incident
 from apps.requests.models import AssetRequest
@@ -31,7 +32,7 @@ class GlobalSearchView(APIView):
             return Response({"results": []})
 
         results = []
-        limit = 5
+        limit = settings.GLOBAL_SEARCH_LIMIT
 
         # 1. Assets
         assets = Asset.objects.filter(

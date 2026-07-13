@@ -1,5 +1,6 @@
 from rest_framework import status
 from rest_framework.decorators import action
+from rest_framework.exceptions import NotFound
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from drf_spectacular.utils import extend_schema_view, extend_schema
@@ -118,9 +119,13 @@ class SoftwareLicenseViewSet(CRUDViewSet):
         serializer = RevokeLicenseSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
 
-        assignment = LicenseAssignment.objects.get(
-            pk=serializer.validated_data["assignment"]
-        )
+        try:
+            assignment = LicenseAssignment.objects.get(
+                pk=serializer.validated_data["assignment"]
+            )
+        except LicenseAssignment.DoesNotExist:
+            raise NotFound({"message": "License assignment not found."})
+
         assignment = LicenseService.revoke(assignment, updated_by=request.user)
         return Response(LicenseAssignmentSerializer(assignment).data)
 
@@ -154,7 +159,7 @@ class SoftwareLicenseViewSet(CRUDViewSet):
 class LicenseAssignmentViewSet(ReadOnlyViewSet):
     """List and manage license assignments."""
 
-    queryset = LicenseAssignment.objects.select_related("license", "employee", "asset")
+    queryset = LicenseAssignment.objects.select_related("license", "employee")
     serializer_class = LicenseAssignmentSerializer
     permission_classes = [IsAuthenticated, IsOrgAdminOrHROrReadOnly]
     search_fields = ["license__name", "employee__first_name"]

@@ -5,7 +5,6 @@ from apps.base.errors import AFValidationError, error_codes
 from apps.licenses.models import SoftwareLicense, LicenseAssignment
 from apps.audit.services import log_action
 
-
 class LicenseService:
     """Business logic for license assignment and revocation."""
 
@@ -23,8 +22,7 @@ class LicenseService:
 
         # Check expiry (only relevant if expiry_date is set)
         if license_obj.expiry_date:
-            from django.utils import timezone as tz
-            today = tz.now().date()
+            today = timezone.now().date()
             if license_obj.expiry_date < today:
                 raise AFValidationError(
                     "Cannot assign seats from an expired license.",

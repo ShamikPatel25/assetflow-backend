@@ -13,6 +13,8 @@ from apps.employees.serializers_auth import (
     TenantUserSerializer,
     EmployeeProfileSerializer,
     ChangePasswordSerializer,
+    ForgotPasswordSerializer,
+    ResetPasswordSerializer,
 )
 
 class TokenResponseSerializer(drf_serializers.Serializer):
@@ -184,3 +186,79 @@ class LogoutView(APIView):
                 status=status.HTTP_400_BAD_REQUEST,
             )
         return Response({"message": "Logged out successfully."})
+
+
+@extend_schema(tags=["Tenant Auth"])
+class ForgotPasswordView(APIView):
+    """Request a password reset link."""
+    permission_classes = [AllowAny]
+
+    @extend_schema(
+        summary="Forgot Password",
+        request=ForgotPasswordSerializer,
+        responses={200: MessageSerializer},
+    )
+    def post(self, request):
+        serializer = ForgotPasswordSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        email = serializer.validated_data["email"].lower().strip()
+        
+        from apps.employees.models import TenantUser
+        user = TenantUser.objects.filter(email=email).first()
+        
+        if user and user.is_active:
+            from apps.accounts.utils import send_password_reset_email
+            tenant = connection.tenant
+            domain_obj = tenant.domains.filter(is_primary=True).first()
+            domain_name = domain_obj.domain if domain_obj else "localhost"
+            send_password_reset_email(user, tenant.name, domain_name)
+
+        # Always return the same message to prevent email enumeration
+        return Response(
+            {"message": "If an account with that email exists, a password reset link has been sent. It will expire in 1 hour."},
+            status=status.HTTP_200_OK
+        )
+
+
+@extend_schema(tags=["Tenant Auth"])
+class ResetPasswordView(APIView):
+    """Reset password using the token sent via email."""
+    permission_classes = [AllowAny]
+
+    @extend_schema(
+        summary="Reset Password",
+        request=ResetPasswordSerializer,
+        responses={200: MessageSerializer, 400: MessageSerializer},
+    )
+    def post(self, request):
+        serializer = ResetPasswordSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        
+        token = serializer.validated_data["token"]
+        new_password = serializer.validated_data["new_password"]
+
+        import jwt
+        from django.conf import settings
+        from apps.employees.models import TenantUser
+
+        try:
+            payload = jwt.decode(token, settings.SECRET_KEY, algorithms=["HS256"])
+            if payload.get("type") != "password_reset":
+                raise jwt.InvalidTokenError("Invalid token type.")
+            
+            user = TenantUser.objects.get(id=payload.get("user_id"))
+            
+            # Verify the single-use hash
+            current_hash = user.password[-20:] if user.password else ""
+            if payload.get("hash") != current_hash:
+                raise jwt.InvalidTokenError("This token has already been used.")
+                
+            user.set_password(new_password)
+            user.save(update_fields=["password", "updated_at"])
+            
+            return Response({"message": "Password has been reset successfully."}, status=status.HTTP_200_OK)
+            
+        except jwt.ExpiredSignatureError:
+            return Response({"message": "Token has expired."}, status=status.HTTP_400_BAD_REQUEST)
+        except (jwt.InvalidTokenError, TenantUser.DoesNotExist):
+            return Response({"message": "Invalid or expired token."}, status=status.HTTP_400_BAD_REQUEST)

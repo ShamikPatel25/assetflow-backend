@@ -1,5 +1,6 @@
 import datetime
 
+from django.conf import settings
 from django.core.cache import cache
 from django.db.models import Count, Sum, Q, Prefetch
 from django.utils import timezone
@@ -11,6 +12,7 @@ from drf_spectacular.utils import extend_schema, extend_schema_view, inline_seri
 
 from apps.assets.models import Asset
 from apps.allocations.models import AssetAllocation
+
 from apps.employees.models import Employee
 from apps.incidents.models import Incident
 from apps.licenses.models import SoftwareLicense
@@ -82,7 +84,6 @@ class DashboardView(APIView):
         tenant_schema = getattr(request, "tenant", None)
         schema_name = tenant_schema.schema_name if tenant_schema else "public"
         cache_key = f"dashboard_stats_{schema_name}"
-        
         cached_data = cache.get(cache_key)
         if cached_data:
             return Response(cached_data)
@@ -122,7 +123,7 @@ class DashboardView(APIView):
                     status=SoftwareLicense.Status.ACTIVE,
                     expiry_date__isnull=False,
                     expiry_date__gte=timezone.now().date(),
-                    expiry_date__lte=timezone.now().date() + datetime.timedelta(days=30),
+                    expiry_date__lte=timezone.now().date() + datetime.timedelta(days=settings.EXPIRY_ALERT_DAYS),
                 ).count(),
             },
             "allocations": {
@@ -130,8 +131,8 @@ class DashboardView(APIView):
             },
         }
         
-        # Cache for 15 minutes (900 seconds)
-        cache.set(cache_key, data, timeout=900)
+        # Cache for 15 minutes
+        cache.set(cache_key, data, timeout=settings.DASHBOARD_CACHE_TTL)
         return Response(data)
 
 
@@ -302,7 +303,7 @@ class LicenseReportView(BaseReportView):
                 status=SoftwareLicense.Status.ACTIVE,
                 expiry_date__isnull=False,
                 expiry_date__gte=today,
-                expiry_date__lte=today + datetime.timedelta(days=30),
+                expiry_date__lte=today + datetime.timedelta(days=settings.EXPIRY_ALERT_DAYS),
             ).count(),
             "total_seats": queryset.aggregate(v=Sum("total_seats"))["v"] or 0,
             "total_cost": queryset.aggregate(v=Sum("cost"))["v"] or 0,

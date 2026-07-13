@@ -1,5 +1,6 @@
 from rest_framework import serializers
 
+from apps.base.validators import validate_phone_number, validate_email_format
 from apps.tenants.models import Organization, Domain
 from apps.accounts.utils import send_invitation_email
 from apps.employees.models import TenantUser
@@ -50,10 +51,7 @@ class OrganizationCreateSerializer(serializers.ModelSerializer):
         return value
 
     def validate_org_admin_email(self, value):
-        if " " in value:
-            raise serializers.ValidationError("Email cannot contain spaces.")
-        if any(char.isupper() for char in value):
-            raise serializers.ValidationError("Email must be in lowercase.")
+        validate_email_format(value)
         return value
 
     def create(self, validated_data):
@@ -152,20 +150,11 @@ class OrganizationSuperAdminUpdateSerializer(serializers.ModelSerializer):
         return value
 
     def validate_org_admin_email(self, value):
-        if " " in value:
-            raise serializers.ValidationError("Email cannot contain spaces.")
-        if any(char.isupper() for char in value):
-            raise serializers.ValidationError("Email must be in lowercase.")
+        validate_email_format(value)
         return value
 
     def validate_contact_phone(self, value):
-        if not value:
-            return value
-        if not value.isdigit():
-            raise serializers.ValidationError("Only numbers are allowed.")
-        if not (10 <= len(value) <= 15):
-            raise serializers.ValidationError("10-15 digits only allowed.")
-        return value
+        return validate_phone_number(value)
 
     def update(self, instance, validated_data):
 
@@ -239,13 +228,7 @@ class OrganizationTenantUpdateSerializer(serializers.ModelSerializer):
         return ret
 
     def validate_contact_phone(self, value):
-        if not value:
-            return value
-        if not value.isdigit():
-            raise serializers.ValidationError("Only numbers are allowed.")
-        if not (10 <= len(value) <= 15):
-            raise serializers.ValidationError("10-15 digits only allowed.")
-        return value
+        return validate_phone_number(value)
 
 
 class DomainSerializer(serializers.ModelSerializer):

@@ -1,5 +1,6 @@
 from django.db import models
 
+from django.conf import settings
 from apps.base.models import AbstractBaseModel
 
 
@@ -101,7 +102,7 @@ class RepairRecord(AbstractBaseModel):
     )
     vendor_name = models.CharField(max_length=200, null=True, blank=True)
     repair_cost = models.DecimalField(max_digits=12, decimal_places=2, null=True, blank=True)
-    currency = models.CharField(max_length=10, default="INR")
+    currency = models.CharField(max_length=10, default=settings.DEFAULT_CURRENCY)
     repair_start_date = models.DateField(null=True, blank=True)
     repair_end_date = models.DateField(null=True, blank=True)
     remarks = models.TextField(null=True, blank=True)

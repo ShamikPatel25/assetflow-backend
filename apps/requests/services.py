@@ -1,9 +1,10 @@
-import uuid
 from django.db import transaction
 from django.utils import timezone
 
 from apps.requests.models import AssetRequest
+from django.conf import settings
 from apps.base.errors import AFValidationError
+from apps.base.utils import generate_reference_number
 from apps.allocations.services import AllocationService
 from apps.assets.models import Asset
 from apps.notifications.services import NotificationService
@@ -17,7 +18,7 @@ class AssetRequestService:
     def create_request(employee, category=None, preferred_asset=None,
                        reason="", priority="MEDIUM", created_by=None):
         request_obj = AssetRequest.objects.create(
-            request_number=f"REQ-{uuid.uuid4().hex[:8].upper()}",
+            request_number=generate_reference_number(settings.REF_PREFIX_REQUEST),
             requested_by=employee,
             category=category,
             preferred_asset=preferred_asset,
@@ -197,7 +198,17 @@ class AssetRequestService:
         return locked_req
 
     @staticmethod
-    def bulk_approve(request_ids, approved_by, notes="", updated_by=None):
+    def _bulk_transition(request_ids, action_fn):
+        """
+        Shared loop skeleton for bulk_approve and bulk_reject.
+
+        Args:
+            request_ids: Iterable of request UUID/str IDs.
+            action_fn:   Callable(req_obj) → performs the transition.
+
+        Returns:
+            dict with keys "success", "failed", "errors".
+        """
         success_count = 0
         failed_count = 0
         errors = []
@@ -214,12 +225,7 @@ class AssetRequestService:
 
             req_obj = request_map[req_str]
             try:
-                AssetRequestService.approve(
-                    req_obj,
-                    approved_by=approved_by,
-                    notes=notes,
-                    updated_by=updated_by
-                )
+                action_fn(req_obj)
                 success_count += 1
             except AFValidationError as e:
                 failed_count += 1
@@ -228,46 +234,25 @@ class AssetRequestService:
                 failed_count += 1
                 errors.append(f"Request {req_obj.request_number}: Internal error - {str(e)}")
 
-        return {
-            "success": success_count,
-            "failed": failed_count,
-            "errors": errors
-        }
+        return {"success": success_count, "failed": failed_count, "errors": errors}
+
+    @staticmethod
+    def bulk_approve(request_ids, approved_by, notes="", updated_by=None):
+        return AssetRequestService._bulk_transition(
+            request_ids,
+            lambda req_obj: AssetRequestService.approve(
+                req_obj, approved_by=approved_by, notes=notes, updated_by=updated_by
+            ),
+        )
 
     @staticmethod
     def bulk_reject(request_ids, rejected_by, rejection_reason="", updated_by=None):
-        success_count = 0
-        failed_count = 0
-        errors = []
-
-        requests = AssetRequest.objects.filter(id__in=request_ids)
-        request_map = {str(req.id): req for req in requests}
-
-        for req_id in request_ids:
-            req_str = str(req_id)
-            if req_str not in request_map:
-                failed_count += 1
-                errors.append(f"Request {req_str}: Not found.")
-                continue
-
-            req_obj = request_map[req_str]
-            try:
-                AssetRequestService.reject(
-                    req_obj,
-                    rejected_by=rejected_by,
-                    rejection_reason=rejection_reason,
-                    updated_by=updated_by
-                )
-                success_count += 1
-            except AFValidationError as e:
-                failed_count += 1
-                errors.append(f"Request {req_obj.request_number}: {e.detail.get('message', str(e))}")
-            except Exception as e:
-                failed_count += 1
-                errors.append(f"Request {req_obj.request_number}: Internal error - {str(e)}")
-
-        return {
-            "success": success_count,
-            "failed": failed_count,
-            "errors": errors
-        }
+        return AssetRequestService._bulk_transition(
+            request_ids,
+            lambda req_obj: AssetRequestService.reject(
+                req_obj,
+                rejected_by=rejected_by,
+                rejection_reason=rejection_reason,
+                updated_by=updated_by,
+            ),
+        )

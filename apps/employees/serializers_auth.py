@@ -1,6 +1,7 @@
 from django.contrib.auth import authenticate
 from rest_framework import serializers
 
+from apps.base.validators import validate_phone_number
 from apps.employees.models import TenantUser, Employee
 
 
@@ -43,26 +44,39 @@ class EmployeeProfileSerializer(serializers.ModelSerializer):
             "joining_date", "exit_date",
         ]
         read_only_fields = [
-            "id", "employee_code", "designation", "department", 
+            "id", "employee_code", "designation", "department",
             "manager", "joining_date", "exit_date"
         ]
 
     def validate_phone(self, value):
-        if not value:
-            return value
-        if not value.isdigit():
-            raise serializers.ValidationError("Only numbers are allowed.")
-        if not (10 <= len(value) <= 15):
-            raise serializers.ValidationError("10-15 digits only allowed.")
-        return value
+        return validate_phone_number(value)
 
 
 class ChangePasswordSerializer(serializers.Serializer):
     old_password = serializers.CharField(write_only=True)
     new_password = serializers.CharField(write_only=True, min_length=8)
+    confirm_password = serializers.CharField(write_only=True, min_length=8)
 
     def validate_old_password(self, value):
         user = self.context["request"].user
         if not user.check_password(value):
             raise serializers.ValidationError("Current password is incorrect.")
         return value
+
+    def validate(self, data):
+        if data["new_password"] != data["confirm_password"]:
+            raise serializers.ValidationError({"confirm_password": "Passwords do not match."})
+        return data
+
+class ForgotPasswordSerializer(serializers.Serializer):
+    email = serializers.EmailField()
+
+class ResetPasswordSerializer(serializers.Serializer):
+    token = serializers.CharField()
+    new_password = serializers.CharField(write_only=True, min_length=8)
+    confirm_password = serializers.CharField(write_only=True, min_length=8)
+
+    def validate(self, data):
+        if data["new_password"] != data["confirm_password"]:
+            raise serializers.ValidationError({"confirm_password": "Passwords do not match."})
+        return data

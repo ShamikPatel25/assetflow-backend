@@ -71,3 +71,24 @@ class EmployeeViewSet(CRUDViewSet):
         # Deactivate the associated user account to block login
         instance.user.is_active = False
         instance.user.save(update_fields=["is_active"])
+
+        # Offboarding: revoke active software licenses and return active physical assets
+        from apps.licenses.models import LicenseAssignment
+        from apps.licenses.services import LicenseService
+        from apps.allocations.models import AssetAllocation
+        from apps.allocations.services import AllocationService
+
+        active_licenses = LicenseAssignment.objects.filter(
+            employee=instance, status=LicenseAssignment.Status.ACTIVE, is_deleted=False
+        )
+        for assignment in active_licenses:
+            LicenseService.revoke(assignment, updated_by=request_user)
+
+        active_allocations = AssetAllocation.objects.filter(
+            employee=instance, status=AssetAllocation.Status.ACTIVE, is_deleted=False
+        )
+        for allocation in active_allocations:
+            AllocationService.return_asset(
+                allocation,
+                remarks="Auto-returned during employee offboarding."
+            )

@@ -53,22 +53,49 @@ def setup_tenants(django_db_setup, django_db_blocker):
             defaults={"is_primary": True},
         )
 
-        return public, test_tenant
+        # Test tenant 2
+        test_tenant2, created2 = Organization.objects.get_or_create(
+            schema_name="test_org2",
+            defaults={
+                "name": "Test Organization 2",
+                "contact_email": "admin2@testorg.local",
+                "is_active": True,
+            },
+        )
+        if created2:
+            test_tenant2.create_schema(check_if_exists=True)
+
+        Domain.objects.get_or_create(
+            domain="test2.localhost",
+            tenant=test_tenant2,
+            defaults={"is_primary": True},
+        )
+
+        return public, test_tenant, test_tenant2
 
 
 @pytest.fixture()
 def tenant(setup_tenants, db):
     """Activate the test tenant schema for the current test."""
-    _, test_tenant = setup_tenants
+    _, test_tenant, _ = setup_tenants
     connection.set_tenant(test_tenant)
     yield test_tenant
     connection.set_schema_to_public()
 
 
 @pytest.fixture()
+def tenant2(setup_tenants, db):
+    """Activate the second test tenant schema for cross-tenant testing."""
+    _, _, test_tenant2 = setup_tenants
+    connection.set_tenant(test_tenant2)
+    yield test_tenant2
+    connection.set_schema_to_public()
+
+
+@pytest.fixture()
 def public_tenant(setup_tenants, db):
     """Activate the public schema for the current test."""
-    public, _ = setup_tenants
+    public, _, _ = setup_tenants
     connection.set_tenant(public)
     yield public
     connection.set_schema_to_public()

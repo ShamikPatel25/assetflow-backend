@@ -1,10 +1,11 @@
-import uuid
 from django.db import transaction
 from django.utils import timezone
 
 from apps.allocations.models import AssetAllocation
 from apps.assets.models import Asset
+from django.conf import settings
 from apps.base.errors import AFValidationError, error_codes
+from apps.base.utils import generate_reference_number
 from apps.notifications.services import NotificationService
 from apps.audit.services import log_action
 
@@ -71,7 +72,7 @@ class AllocationService:
             AllocationService._validate_asset_for_allocation(locked_asset)
 
             allocation = AssetAllocation.objects.create(
-                allocation_number=f"ALLOC-{uuid.uuid4().hex[:8].upper()}",
+                allocation_number=generate_reference_number(settings.REF_PREFIX_ALLOCATION),
                 asset=locked_asset,
                 employee=employee,
                 assigned_by=assigned_by,
@@ -254,7 +255,7 @@ class AllocationService:
 
             # 2. Create new allocation
             new_allocation = AssetAllocation.objects.create(
-                allocation_number=f"ALLOC-{uuid.uuid4().hex[:8].upper()}",
+                allocation_number=generate_reference_number(settings.REF_PREFIX_ALLOCATION),
                 asset=asset,
                 employee=new_employee,
                 assigned_by=assigned_by,
